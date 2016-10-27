@@ -40,6 +40,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.view.Surface;
 import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.safelyandroid.misc.CheckUtil;
 import com.hannesdorfmann.fragmentargs.annotation.FragmentWithArgs;
 import java.util.Arrays;
 import java.util.List;
@@ -136,6 +137,9 @@ public class Camera2PreviewFragment extends PreviewFragment
     public void onOpened(final CameraDevice cameraDevice, final ImageReader imageReader,
             final Handler cameraHandler, final Rotation rotation, final boolean flipHorizontal,
             final boolean flipVertical) {
+        if (!isResumed() || !CheckUtil.nonNull(mProcessorChain)) {
+            return;
+        }
         mProcessorChain.onCameraOpened(rotation, flipHorizontal, flipVertical,
                 surfaceTexture -> {
                     // fix MX5 preview not show bug: http://stackoverflow.com/a/34337226/3077508

@@ -39,7 +39,9 @@ import com.github.piasy.cameracompat.compat.events.SwitchFlashEvent;
 import com.github.piasy.cameracompat.compat.events.SwitchMirrorEvent;
 import com.github.piasy.cameracompat.processor.GPUImageChain;
 import com.github.piasy.cameracompat.processor.ProcessorChain;
+import com.github.piasy.safelyandroid.misc.CheckUtil;
 import com.hannesdorfmann.fragmentargs.annotation.Arg;
+import javax.annotation.concurrent.GuardedBy;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -49,6 +51,7 @@ import org.greenrobot.eventbus.ThreadMode;
 
 abstract class PreviewFragment extends Fragment {
 
+    @GuardedBy("this")
     protected ProcessorChain mProcessorChain;
 
     @Arg
@@ -65,7 +68,6 @@ abstract class PreviewFragment extends Fragment {
     boolean mIsDefaultMirrorEnabled;
 
     private ViewGroup mPreviewContainer;
-
     private CameraHelper mCameraHelper;
 
     public PreviewFragment() {
@@ -135,32 +137,41 @@ abstract class PreviewFragment extends Fragment {
     @Override
     public void onDetach() {
         super.onDetach();
-        mProcessorChain = null;
+
+        synchronized (this) {
+            mProcessorChain = null;
+        }
     }
 
     protected abstract CameraHelper createCameraHelper();
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onSwitchBeautify(SwitchBeautifyEvent event) {
-        if (mProcessorChain instanceof GPUImageChain) {
+    public synchronized void onSwitchBeautify(SwitchBeautifyEvent event) {
+        if (isResumed() && mProcessorChain instanceof GPUImageChain) {
             ((GPUImageChain) mProcessorChain).switchBeautify();
         }
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onSwitchCamera(SwitchCameraEvent event) {
-        mProcessorChain.pause();
-        mCameraHelper.switchCamera();
-        mProcessorChain.cameraSwitched();
+    public synchronized void onSwitchCamera(SwitchCameraEvent event) {
+        if (isResumed() && CheckUtil.nonNull(mProcessorChain, mCameraHelper)) {
+            mProcessorChain.pause();
+            mCameraHelper.switchCamera();
+            mProcessorChain.cameraSwitched();
+        }
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onSwitchFlash(SwitchFlashEvent event) {
-        mCameraHelper.switchFlash();
+    public synchronized void onSwitchFlash(SwitchFlashEvent event) {
+        if (isResumed() && CheckUtil.nonNull(mCameraHelper)) {
+            mCameraHelper.switchFlash();
+        }
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onSwitchMirror(SwitchMirrorEvent event) {
-        mProcessorChain.switchMirror();
+    public synchronized void onSwitchMirror(SwitchMirrorEvent event) {
+        if (isResumed() && CheckUtil.nonNull(mProcessorChain)) {
+            mProcessorChain.switchMirror();
+        }
     }
 }

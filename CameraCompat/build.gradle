@@ -56,6 +56,8 @@ android {
 dependencies {
     compile "com.android.support:support-v4:$rootProject.ext.androidSupportSdkVersion"
     compile 'com.getkeepsafe.relinker:relinker:1.2.1'
+    compile 'com.github.piasy:safelyandroid:1.2.4'
+    compile group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
     compile "jp.co.cyberagent.android.gpuimage:gpuimage-library:$rootProject.ext.gpuImageVersion"
 
     compile "com.hannesdorfmann.fragmentargs:annotation:$rootProject.ext.fragmentArgsVersion"

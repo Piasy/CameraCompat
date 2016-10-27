@@ -32,6 +32,7 @@ import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.safelyandroid.misc.CheckUtil;
 import com.hannesdorfmann.fragmentargs.annotation.FragmentWithArgs;
 import java.io.IOException;
 import jp.co.cyberagent.android.gpuimage.Rotation;
@@ -62,8 +63,11 @@ public class Camera1PreviewFragment extends PreviewFragment
     }
 
     @Override
-    public void onOpened(final Camera camera, Rotation rotation, boolean flipHorizontal,
+    public synchronized void onOpened(final Camera camera, Rotation rotation, boolean flipHorizontal,
             boolean flipVertical) {
+        if (!isResumed() || !CheckUtil.nonNull(mProcessorChain)) {
+            return;
+        }
         mProcessorChain.onCameraOpened(rotation, flipHorizontal, flipVertical,
                 surfaceTexture -> startPreviewDirectly(surfaceTexture, camera));
     }
