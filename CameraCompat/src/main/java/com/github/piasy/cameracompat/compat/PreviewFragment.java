@@ -42,6 +42,7 @@ import com.github.piasy.cameracompat.processor.ProcessorChain;
 import com.github.piasy.safelyandroid.misc.CheckUtil;
 import com.hannesdorfmann.fragmentargs.annotation.Arg;
 import javax.annotation.concurrent.GuardedBy;
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -69,6 +70,8 @@ abstract class PreviewFragment extends Fragment {
 
     private ViewGroup mPreviewContainer;
     private CameraHelper mCameraHelper;
+    @GuardedBy("this")
+    private EventBus mEventBus;
 
     public PreviewFragment() {
         // Required empty public constructor
@@ -77,7 +80,20 @@ abstract class PreviewFragment extends Fragment {
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        mProcessorChain = CameraCompat.getInstance().getProcessorChain();
+        try {
+            mProcessorChain = CameraCompat.getInstance().getProcessorChain();
+            mEventBus = CameraCompat.getInstance().getEventBus();
+        } catch (IllegalStateException e) {
+            // this could happen when the host Activity is recreated, and before user init
+            // CameraCompat instance, this preview fragment get attached.
+
+            // currently we could only cover this problem to avoid crash, but
+            // TODO: 27/10/2016 could we notify user that error happen?
+            // although leave this Activity and enter again would solve this problem
+
+            mProcessorChain = NoOpChain.INSTANCE;
+            mEventBus = EventBus.getDefault();
+        }
     }
 
     @Override
@@ -89,7 +105,7 @@ abstract class PreviewFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
-        CameraCompat.getInstance().getEventBus().register(this);
+        mEventBus.register(this);
         mProcessorChain.setUp();
         return inflater.inflate(R.layout.preview_fragment, container, false);
     }
@@ -108,7 +124,7 @@ abstract class PreviewFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
-        if (mCameraHelper != null) {
+        if (CheckUtil.nonNull(mCameraHelper)) {
             mCameraHelper.startPreview();
         }
     }
@@ -117,7 +133,7 @@ abstract class PreviewFragment extends Fragment {
     public void onPause() {
         super.onPause();
 
-        if (mCameraHelper != null) {
+        if (CheckUtil.nonNull(mCameraHelper)) {
             mCameraHelper.stopPreview();
         }
     }
@@ -125,7 +141,7 @@ abstract class PreviewFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        CameraCompat.getInstance().getEventBus().unregister(this);
+        mEventBus.unregister(this);
         mProcessorChain.tearDown();
     }
 
@@ -140,6 +156,7 @@ abstract class PreviewFragment extends Fragment {
 
         synchronized (this) {
             mProcessorChain = null;
+            mEventBus = null;
         }
     }
 
