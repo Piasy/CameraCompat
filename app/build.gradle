@@ -46,8 +46,4 @@ dependencies {
     compile("io.reactivex:rxandroid:$rootProject.ext.rxAndroidVersion") {
         exclude module: 'rxjava'
     }
-    compile('com.github.h0ngyue:AndroidLiveSDK:1.0.6') {
-        exclude module: 'support-v4'
-        exclude module: 'CameraCompat'
-    }
 }

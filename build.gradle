@@ -22,15 +22,6 @@ buildscript {
 allprojects {
     repositories {
         jcenter()
-
-        // yolo private repo
-        maven {
-            url "http://47.88.103.205:8081/artifactory/libs-release-local"
-            credentials {
-                username = "${artifactory_username}"
-                password = "${artifactory_password}"
-            }
-        }
     }
 }
 

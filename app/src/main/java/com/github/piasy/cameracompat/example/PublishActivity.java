@@ -24,7 +24,6 @@
 
 package com.github.piasy.cameracompat.example;
 
-import android.media.AudioFormat;
 import android.os.Bundle;
 import android.support.annotation.WorkerThread;
 import android.support.v7.app.AppCompatActivity;
@@ -38,21 +37,11 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import com.github.piasy.cameracompat.CameraCompat;
-import com.github.piasy.cameracompat.processor.beautify.BeautifyProcessor;
-import com.github.piasy.rxandroidaudio.StreamAudioRecorder;
 import com.yatatsu.autobundle.AutoBundle;
 import com.yatatsu.autobundle.AutoBundleField;
-import com.yolo.livesdk.YoloLiveNative;
-import com.yolo.livesdk.YoloLiveObs;
-import com.yolo.livesdk.audio.YoloLiveAudioRecorder;
-import com.yolo.livesdk.rx.YoloLivePublishParam;
 
 public class PublishActivity extends AppCompatActivity implements CameraCompat.VideoCaptureCallback,
         CameraCompat.ErrorHandler {
-
-    private static final int DEFAULT_SAMPLE_RATE = 16000;
-    private static final int DEFAULT_CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO;
-    private static final int DEFAULT_BIT_DEPTH_CONFIG = AudioFormat.ENCODING_PCM_16BIT;
 
     @AutoBundleField
     boolean mBeautifyCapable;
@@ -63,7 +52,6 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     View mBtnSwitchBeautify;
 
     private CameraCompat mCameraCompat;
-    private YoloLiveAudioRecorder mYLLiveAudioRecorder;
 
     private boolean mHide = false;
     private boolean mIsBig = true;
@@ -82,14 +70,6 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
         }
 
         start();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-
-        mYLLiveAudioRecorder.stop();
-        YoloLiveNative.closeSender();
     }
 
     @OnClick(R2.id.mBtnSwitchBeautify)
@@ -158,13 +138,9 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     }
 
     private void start() {
-        mYLLiveAudioRecorder = YoloLiveAudioRecorder.getInstance();
         CameraCompat.Builder builder = new CameraCompat.Builder(this, this)
                 .beautifyOn(false)
                 .frontCamera(false);
-        if (mBeautifyCapable) {
-            builder.addProcessor(new BeautifyProcessor(this));
-        }
         mCameraCompat = builder.build();
         mCameraCompat.startPreview(null, getSupportFragmentManager(), R.id.mPreviewContainer);
     }
@@ -172,13 +148,16 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     @WorkerThread
     @Override
     public void onVideoSizeChanged(int width, int height) {
-        startPublish(width, height);
+        Log.d("PublishActivity", "onVideoSizeChanged width = " + width
+                                 + ", height = " + height);
     }
 
     @WorkerThread
     @Override
     public void onFrameData(final byte[] data, final int width, final int height) {
-        YoloLiveNative.pushVideoData(data, System.currentTimeMillis());
+        Log.d("PublishActivity", "onFrameData width = " + width
+                                 + ", height = " + height
+                                 + ", data length = " + data.length);
     }
 
     @WorkerThread
@@ -186,65 +165,5 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     public void onError(@CameraCompat.ErrorCode int code) {
         runOnUiThread(() ->
                 Toast.makeText(this, "@CameraCompat.ErrorCode " + code, Toast.LENGTH_SHORT).show());
-    }
-
-    private void startPublish(int videoWidth, int videoHeight) {
-        String url = "rtmp://video-center.alivecdn.com"
-                     + "/yolo/4acdd42854a63366fac1339b10784d1e89418ed6"
-                     + "?vhost=alive.yoloyolo.tv"
-                     + "&auth_key=2524579200-0-0-b334ee106592e2c719e2d801291b2c7d";
-        YoloLivePublishParam.Builder builder = new YoloLivePublishParam.Builder(url, videoWidth,
-                videoHeight, YoloLivePublishParam.DEFAULT_SAMPLERATE,
-                YoloLivePublishParam.DEFAULT_CHANNEL_NUM);
-        builder.autoCrf(this);
-        YoloLiveNative.initSender(builder.build());
-
-        YoloLiveObs.setCallback(new YoloLiveObs.LiveCallback() {
-            @Override
-            public void notifyEvent(int resultCode, String content) {
-                if (resultCode == YoloLiveObs.OK_PublishConnect) {
-                    mYLLiveAudioRecorder.start(DEFAULT_SAMPLE_RATE, DEFAULT_CHANNEL_CONFIG,
-                            DEFAULT_BIT_DEPTH_CONFIG,
-                            new StreamAudioRecorder.AudioDataCallback() {
-                                @Override
-                                public void onAudioData(byte[] data, int size) {
-                                    YoloLiveNative.pushAudioData(data, size,
-                                            System.currentTimeMillis());
-                                }
-
-                                @Override
-                                public void onError() {
-                                    Log.e("PublishActivity",
-                                            "StreamAudioRecorder.AudioDataCallback::onError");
-                                }
-                            });
-                }
-            }
-
-            @Override
-            public void notifyVideoData(int receiverId, byte[] data) {
-
-            }
-
-            @Override
-            public int notifyAudioData(int receiverId, byte[] data, int size) {
-                return 0;
-            }
-
-            @Override
-            public void onH264Video(byte[] data, int size, int type) {
-
-            }
-
-            @Override
-            public int setWidthHeight(int receiverId, int width, int height) {
-                return 0;
-            }
-
-            @Override
-            public int setAudioSpec(int receiverId, int bitDepth, int nChannels, int sampleRate) {
-                return 0;
-            }
-        });
     }
 }

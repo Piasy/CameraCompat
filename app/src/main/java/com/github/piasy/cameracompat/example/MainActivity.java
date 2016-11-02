@@ -30,7 +30,6 @@ import android.support.v7.app.AppCompatActivity;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import com.github.piasy.cameracompat.CameraCompat;
-import com.yolo.livesdk.YoloLiveNative;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -39,30 +38,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         CameraCompat.init(getApplicationContext());
-        YoloLiveNative.init(getApplicationContext(), true);
 
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
     }
 
-    @OnClick(R2.id.mBtnPublish)
-    public void publish() {
-        startActivity(PublishActivityAutoBundle.createIntentBuilder(false).build(this));
-    }
-
     @OnClick(R2.id.mBtnBeautifyPublish)
     public void beautifyPublish() {
         startActivity(PublishActivityAutoBundle.createIntentBuilder(true).build(this));
-    }
-
-    @OnClick(R2.id.mBtnWatch)
-    public void watch() {
-        startActivity(new Intent(this, WatchActivity.class));
-    }
-
-    @OnClick(R2.id.mBtnProfiling)
-    public void profiling() {
-        startActivity(new Intent(this, ProfilingActivity.class));
     }
 
     @OnClick(R2.id.mBtnQrScan)

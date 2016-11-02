@@ -43,9 +43,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity android:name=".ProfilingActivity"/>
         <activity android:name=".PublishActivity"/>
-        <activity android:name=".WatchActivity"/>
         <activity android:name=".QrScanActivity"/>
     </application>
 

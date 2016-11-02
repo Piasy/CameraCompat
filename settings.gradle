@@ -1,1 +1,1 @@
-include ':app', ':CameraCompat', ':BeautifyProcessor', ':RxQrCode'
+include ':app', ':CameraCompat', ':RxQrCode', ':BasicBeautifyProcessor'
