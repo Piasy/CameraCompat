@@ -7,3 +7,9 @@
 .DS_Store
 **/build
 /captures
+/test
+
+/app/src/main/jniLibs
+/livesdk
+/CameraCompat/src/main/java/tv/yoloyolo/ios/beautify
+/CameraCompat/src/main/res/drawable/map.png

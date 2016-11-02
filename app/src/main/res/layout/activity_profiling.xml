@@ -24,56 +24,24 @@
   -->
 
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-    <Button
-            android:id="@+id/mBtnStart"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="start"
-            />
-    <Button
-            android:id="@+id/mBtnProfiling"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="profiling"
-            />
     <FrameLayout
             android:id="@+id/mPreviewContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             />
-    <LinearLayout
-            android:id="@+id/mOpContainer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_gravity="bottom|center_horizontal"
+    <TextView
+            android:id="@+id/mTvResult"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:textColor="@android:color/black"
+            android:textSize="20sp"
+            android:gravity="center"
             android:visibility="gone"
-            >
-        <Button
-                android:id="@+id/mBtnSwitchBeautify"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="beautify"
-                />
-        <Button
-                android:id="@+id/mBtnSwitchCamera"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="camera"
-                />
-        <Button
-                android:id="@+id/mBtnSwitchFlash"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="flash"
-                />
-    </LinearLayout>
+            tools:visibility="visible"
+            tools:text="result"
+            />
 </FrameLayout>

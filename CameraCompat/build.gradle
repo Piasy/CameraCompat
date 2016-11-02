@@ -1,0 +1,47 @@
+apply plugin: 'com.android.library'
+apply plugin: 'com.neenbedankt.android-apt'
+//apply from: "https://raw.githubusercontent.com/Piasy/BintrayUploadScript/master/bintray.gradle"
+
+apt {
+    arguments {
+        fragmentArgsLib true
+    }
+}
+
+android {
+    compileSdkVersion rootProject.ext.androidCompileSdkVersion
+    buildToolsVersion rootProject.ext.androidBuildToolsVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode rootProject.ext.releaseVersionCode
+        versionName rootProject.ext.releaseVersionName
+
+        ndk {
+            moduleName "rgb-yuv-converter-library"
+            stl "gnustl_shared"
+            abiFilters "all"
+            ldLibs "log"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets {
+        main {
+            jni.srcDirs = ['src/main/jni']
+        }
+    }
+}
+
+dependencies {
+    compile "com.android.support:support-v4:${rootProject.ext.androidSupportSdkVersion}"
+    compile "jp.co.cyberagent.android.gpuimage:gpuimage-library:${rootProject.ext.gpuImageVersion}"
+    compile "com.hannesdorfmann.fragmentargs:annotation:${rootProject.ext.fragmentArgsVersion}"
+    apt "com.hannesdorfmann.fragmentargs:processor:${rootProject.ext.fragmentArgsVersion}"
+    compile 'org.greenrobot:eventbus:3.0.0'
+}
