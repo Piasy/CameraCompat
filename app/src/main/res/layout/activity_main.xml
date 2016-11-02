@@ -36,6 +36,13 @@
             android:text="publish"
             />
     <Button
+            android:id="@+id/mBtnBeautifyPublish"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="beautify publish"
+            />
+    <Button
             android:id="@+id/mBtnWatch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -48,5 +55,12 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:text="profiling"
+            />
+    <Button
+            android:id="@+id/mBtnQrScan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="Qr scan"
             />
 </LinearLayout>

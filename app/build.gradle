@@ -1,4 +1,7 @@
 apply plugin: 'com.android.application'
+apply plugin: 'me.tatarka.retrolambda'
+apply plugin: 'android-apt'
+apply plugin: 'com.jakewharton.butterknife'
 
 android {
     compileSdkVersion rootProject.ext.androidCompileSdkVersion
@@ -21,10 +24,30 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 dependencies {
-    compile "com.android.support:appcompat-v7:${rootProject.ext.androidSupportSdkVersion}"
+    compile "com.android.support:appcompat-v7:$rootProject.ext.androidSupportSdkVersion"
+    compile "com.jakewharton:butterknife:$rootProject.ext.butterKnifeVersion"
+    apt "com.jakewharton:butterknife-compiler:$rootProject.ext.butterKnifeVersion"
+    compile "com.github.yatatsu:autobundle:$rootProject.ext.autoBundleVersion"
+    apt "com.github.yatatsu:autobundle-processor:$rootProject.ext.autoBundleVersion"
+    compile 'com.afollestad.material-dialogs:core:0.9.0.2'
+
     compile project(':CameraCompat')
-    compile project(':android-live-sdk')
+    compile project(':BeautifyProcessor')
+    compile project(':RxQrCode')
+
+    compile("io.reactivex:rxandroid:$rootProject.ext.rxAndroidVersion") {
+        exclude module: 'rxjava'
+    }
+    compile('com.github.h0ngyue:AndroidLiveSDK:1.0.6') {
+        exclude module: 'support-v4'
+        exclude module: 'CameraCompat'
+    }
 }

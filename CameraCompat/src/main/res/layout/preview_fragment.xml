@@ -22,16 +22,10 @@
   ~ SOFTWARE.
   -->
 
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
+<FrameLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/mPreviewContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".internal.Camera1PreviewFragment"
         >
-    <android.opengl.GLSurfaceView
-            android:id="@+id/mSurface"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:keepScreenOn="true"
-            />
 </FrameLayout>

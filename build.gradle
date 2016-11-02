@@ -5,13 +5,16 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.1'
+        classpath 'com.android.tools.build:gradle:2.2.2'
         classpath 'com.neenbedankt.gradle.plugins:android-apt:1.8'
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.3.1'
-        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
-        classpath 'me.tatarka:gradle-retrolambda:3.2.5'
+
+        classpath 'me.tatarka:gradle-retrolambda:3.3.0'
+        classpath 'com.jakewharton:butterknife-gradle-plugin:8.4.0'
         classpath 'me.tatarka.retrolambda.projectlombok:lombok.ast:0.2.3.a2'
+
         classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.0.1"
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.1'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
     }
     configurations.classpath.exclude group: 'com.android.tools.external.lombok'
 }
@@ -19,6 +22,15 @@ buildscript {
 allprojects {
     repositories {
         jcenter()
+
+        // yolo private repo
+        maven {
+            url "http://47.88.103.205:8081/artifactory/libs-release-local"
+            credentials {
+                username = "${artifactory_username}"
+                password = "${artifactory_password}"
+            }
+        }
     }
 }
 
@@ -42,8 +54,8 @@ ext {
     artifactName = 'CameraCompat'
     artifactDescription = 'Create a camera preview app with beautify and camera api compatibility!'
     artifactLabels = ['Camera', 'Preview', 'GPUImage', 'Beautify', 'Compat']
-    releaseVersionCode = 1
-    releaseVersionName = '1.0.0'
+    releaseVersionCode = 3
+    releaseVersionName = '1.1.3'
 
     minSdkVersion = 15
     androidCompileSdkVersion = 24
@@ -53,8 +65,10 @@ ext {
 
     fragmentArgsVersion = '3.0.2'
     gpuImageVersion = '1.4.1'
-    rxJavaVersion = '1.0.15'
-    rxAndroidVersion = '1.0.1'
-    timberVersion = '4.1.2'
+    rxJavaVersion = '1.2.1'
+    rxAndroidVersion = '1.2.1'
+    timberVersion = '4.3.1'
     retroLambdaVersion = '2.3.0'
+    butterKnifeVersion = '8.4.0'
+    autoBundleVersion = '3.1.1'
 }

@@ -30,9 +30,18 @@ import android.support.annotation.WorkerThread;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.Toast;
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.OnClick;
 import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.cameracompat.processor.beautify.BeautifyProcessor;
 import com.github.piasy.rxandroidaudio.StreamAudioRecorder;
+import com.yatatsu.autobundle.AutoBundle;
+import com.yatatsu.autobundle.AutoBundleField;
 import com.yolo.livesdk.YoloLiveNative;
 import com.yolo.livesdk.YoloLiveObs;
 import com.yolo.livesdk.audio.YoloLiveAudioRecorder;
@@ -45,41 +54,32 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     private static final int DEFAULT_CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO;
     private static final int DEFAULT_BIT_DEPTH_CONFIG = AudioFormat.ENCODING_PCM_16BIT;
 
+    @AutoBundleField
+    boolean mBeautifyCapable;
+
+    @BindView(R2.id.mPreviewContainer)
+    View mContainer;
+    @BindView(R2.id.mBtnSwitchBeautify)
+    View mBtnSwitchBeautify;
+
     private CameraCompat mCameraCompat;
     private YoloLiveAudioRecorder mYLLiveAudioRecorder;
 
+    private boolean mHide = false;
+    private boolean mIsBig = true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        AutoBundle.bind(this);
         super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+
         setContentView(R.layout.activity_publish);
+        ButterKnife.bind(this);
 
-        findViewById(R.id.mBtnSwitchBeautify).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchBeautify();
-            }
-        });
-
-        findViewById(R.id.mBtnSwitchCamera).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchCamera();
-            }
-        });
-
-        findViewById(R.id.mBtnSwitchFlash).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchFlash();
-            }
-        });
-
-        findViewById(R.id.mBtnSwitchMirror).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchMirror();
-            }
-        });
+        if (!mBeautifyCapable) {
+            mBtnSwitchBeautify.setVisibility(View.GONE);
+        }
 
         start();
     }
@@ -92,12 +92,80 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
         YoloLiveNative.closeSender();
     }
 
+    @OnClick(R2.id.mBtnSwitchBeautify)
+    public void switchBeautify() {
+        mCameraCompat.switchBeautify();
+    }
+
+    @OnClick(R2.id.mBtnSwitchCamera)
+    public void switchCamera() {
+        mCameraCompat.switchCamera();
+    }
+
+    @OnClick(R2.id.mBtnSwitchFlash)
+    public void switchFlash() {
+        mCameraCompat.switchFlash();
+    }
+
+    @OnClick(R2.id.mBtnSwitchMirror)
+    public void switchMirror() {
+        mCameraCompat.switchMirror();
+        Toast.makeText(this, "switchMirror", Toast.LENGTH_SHORT).show();
+    }
+
+    @OnClick(R2.id.mBtnSwitchVisibility)
+    public void switchVisibility() {
+        if (mHide) {
+            mHide = false;
+            mContainer.setVisibility(View.VISIBLE);
+        } else {
+            mHide = true;
+            mContainer.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    @OnClick(R2.id.mBtnResize)
+    public void resize() {
+        if (mIsBig) {
+            mIsBig = false;
+            FrameLayout.LayoutParams params
+                    = (FrameLayout.LayoutParams) mContainer.getLayoutParams();
+            params.height = 300;
+            params.width = 160;
+            mContainer.setLayoutParams(params);
+
+            getSupportFragmentManager().beginTransaction()
+                    .remove(getSupportFragmentManager().findFragmentByTag(
+                            CameraCompat.CAMERA_PREVIEW_FRAGMENT))
+                    .commit();
+
+            start();
+        } else {
+            mIsBig = true;
+            FrameLayout.LayoutParams params
+                    = (FrameLayout.LayoutParams) mContainer.getLayoutParams();
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            mContainer.setLayoutParams(params);
+
+            getSupportFragmentManager().beginTransaction()
+                    .remove(getSupportFragmentManager().findFragmentByTag(
+                            CameraCompat.CAMERA_PREVIEW_FRAGMENT))
+                    .commit();
+
+            start();
+        }
+    }
+
     private void start() {
         mYLLiveAudioRecorder = YoloLiveAudioRecorder.getInstance();
-        mCameraCompat = new CameraCompat.Builder(this, this)
+        CameraCompat.Builder builder = new CameraCompat.Builder(this, this)
                 .beautifyOn(false)
-                .frontCamera(false)
-                .build();
+                .frontCamera(false);
+        if (mBeautifyCapable) {
+            builder.addProcessor(new BeautifyProcessor(this));
+        }
+        mCameraCompat = builder.build();
         mCameraCompat.startPreview(null, getSupportFragmentManager(), R.id.mPreviewContainer);
     }
 
@@ -116,7 +184,8 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     @WorkerThread
     @Override
     public void onError(@CameraCompat.ErrorCode int code) {
-        Toast.makeText(this, "@CameraCompat.ErrorCode " + code, Toast.LENGTH_SHORT).show();
+        runOnUiThread(() ->
+                Toast.makeText(this, "@CameraCompat.ErrorCode " + code, Toast.LENGTH_SHORT).show());
     }
 
     private void startPublish(int videoWidth, int videoHeight) {

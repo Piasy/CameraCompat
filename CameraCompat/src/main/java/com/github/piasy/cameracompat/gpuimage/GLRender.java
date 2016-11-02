@@ -1,30 +1,35 @@
 /*
- * Copyright (C) 2012 CyberAgent
+ * The MIT License (MIT)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Copyright (c) 2016 Piasy
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
  *
- * Modified by Piasy
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 package com.github.piasy.cameracompat.gpuimage;
 
-import android.annotation.TargetApi;
 import android.graphics.SurfaceTexture;
-import android.media.Image;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
-import android.os.Build;
 import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.cameracompat.compat.CameraFrameCallback;
+import com.github.piasy.cameracompat.utils.GLUtil;
 import com.github.piasy.cameracompat.utils.Profiler;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -47,32 +52,26 @@ import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE
  * {@link GLSurfaceView.Renderer} implementation, work both for Camera
  * and Camera2 framework.
  */
-@SuppressWarnings("unused")
-public class GLRender
-        implements GLSurfaceView.Renderer, CameraFrameCallback, GLFilterGroup.ImageDumpedListener {
+public class GLRender implements GLSurfaceView.Renderer {
     static final float CUBE[] = {
             -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f,
     };
     private static final int NO_IMAGE = -1;
-    static long frameStart;
-    static long yuv2rgba;
-    static long preDraw;
-    static long readPixels;
-    static long rgba2yuv;
-    static long draw;
-    private final Object mSurfaceChangedWaiter = new Object();
     private final FloatBuffer mGLCubeBuffer;
     private final FloatBuffer mGLTextureBuffer;
     private final Queue<Runnable> mRunOnDraw;
     private final Queue<Runnable> mRunOnDrawEnd;
     private final GLFilterGroup mDesiredFilter;
     private final GLFilterGroup mIdleFilterGroup;
-    private final CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
+    private final VideoSizeChangedListener mVideoSizeChangedListener;
+
+    // profiling field
+    private final Profiler mProfiler;
+
     private GLFilterGroup mFilter;
     private int mGLTextureId = NO_IMAGE;
     private SurfaceTexture mSurfaceTexture = null;
-    private ByteBuffer mGLRgbaBuffer;
-    private ByteBuffer mGLYuvBuffer;
+
     /**
      * After surface created/changed, {@link #mOutputWidth} and {@link #mOutputHeight} will be
      * updated, and it's the size of the surface (view), it's also set to
@@ -80,6 +79,7 @@ public class GLRender
      */
     private int mOutputWidth;
     private int mOutputHeight;
+
     /**
      * After preview started (get data at {@link CameraFrameCallback#onFrameData(byte[], int, int,
      * Runnable)}), {@link #mImageWidth} and {@link #mImageHeight} will be updated, it's the size
@@ -89,6 +89,7 @@ public class GLRender
     private int mImageHeight;
     private int mVideoWidth;
     private int mVideoHeight;
+
     /**
      * Used to adjust preview image size into the surface view size. so we only need to choose the
      * best match size from camera supported size, the render will handle the adjust for us.
@@ -97,29 +98,24 @@ public class GLRender
     private boolean mFlipHorizontal;
     private boolean mFlipVertical;
     private GPUImage.ScaleType mScaleType = GPUImage.ScaleType.CENTER_CROP;
+
     private float mBackgroundRed = 0;
     private float mBackgroundGreen = 0;
     private float mBackgroundBlue = 0;
+
     // only accessed in draw thread
     private boolean mEnableFilter;
-    private boolean mEnableMirror;
     private boolean mIsPaused = false;
     private boolean mIsDrawing = true;
-    private volatile boolean mIsFrontCamera;
-    // profiling field
-    private Profiler mProfiler;
+
     public GLRender(final GLFilterGroup filter, boolean enableFilter,
-            CameraCompat.VideoCaptureCallback videoCaptureCallback, boolean isFrontCamera,
-            boolean enableMirror) {
-        mProfiler = CameraCompat.getInstance().getProfiler();
+            VideoSizeChangedListener videoSizeChangedListener, Profiler profiler) {
+        mVideoSizeChangedListener = videoSizeChangedListener;
+        mProfiler = profiler;
         mIdleFilterGroup = new GLFilterGroup(Collections.singletonList(new GPUImageFilter()));
-        mVideoCaptureCallback = videoCaptureCallback;
         mDesiredFilter = filter;
-        mDesiredFilter.setImageDumpedListener(this);
         mEnableFilter = enableFilter;
         mFilter = enableFilter ? mDesiredFilter : mIdleFilterGroup;
-        mIsFrontCamera = isFrontCamera;
-        mEnableMirror = enableMirror;
         mRunOnDraw = new LinkedList<>();
         mRunOnDrawEnd = new LinkedList<>();
 
@@ -142,15 +138,12 @@ public class GLRender
     }
 
     @Override
-    public void onSurfaceChanged(final GL10 gl, final int width, final int height) {
+    public void onSurfaceChanged(final GL10 unused, final int width, final int height) {
         mOutputWidth = width;
         mOutputHeight = height;
         GLES20.glUseProgram(mFilter.getProgram());
         mFilter.onOutputSizeChanged(width, height);
         adjustImageScaling();
-        synchronized (mSurfaceChangedWaiter) {
-            mSurfaceChangedWaiter.notifyAll();
-        }
     }
 
     @Override
@@ -158,28 +151,52 @@ public class GLRender
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         try {
-            frameStart = System.nanoTime();
             runAll(mRunOnDraw);
-            preDraw = System.nanoTime();
             if (!isResumed()) {
                 return;
             }
             mFilter.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
-            draw = System.nanoTime();
             runAll(mRunOnDrawEnd);
             if (mSurfaceTexture != null) {
                 mSurfaceTexture.updateTexImage();
             }
-            if (mProfiler != null) {
-                mProfiler.metric((preDraw - frameStart) / 1_000_000,
-                        (yuv2rgba - frameStart) / 1_000_000, (draw - preDraw) / 1_000_000,
-                        (readPixels - preDraw) / 1_000_000, (rgba2yuv - readPixels) / 1_000_000);
-            }
+            //if (mProfiler != null) {
+            //    mProfiler.metric((preDraw - frameStart) / 1_000_000,
+            //            (yuv2rgba - frameStart) / 1_000_000, (draw - preDraw) / 1_000_000,
+            //            (readPixels - preDraw) / 1_000_000, (rgba2yuv - readPixels) / 1_000_000);
+            //}
         } catch (RuntimeException | OutOfMemoryError error) {
             // throw from: runAll(mRunOnDraw) -> mFilter.onImageSizeChanged -> ByteBuffer
             // .allocateDirect
             CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
+    }
+
+    public void scheduleDrawFrame(ByteBuffer frame, int width, int height,
+            Runnable postProcessedTask) {
+        runOnDraw(() -> {
+            if (isPaused()) {
+                postProcessedTask.run();
+                return;
+            }
+            if (mImageWidth == 0) {
+                mImageWidth = width;
+                mImageHeight = height;
+                mVideoWidth = mImageWidth;
+                // 16 bytes alignment
+                mVideoHeight = (mImageWidth * mOutputWidth / mOutputHeight) & 0xfffffff0;
+                mFilter.onImageSizeChanged(mVideoWidth, mVideoHeight);
+                mVideoSizeChangedListener.onVideoSizeChanged(mVideoWidth, mVideoHeight);
+                adjustImageScaling();
+            }
+
+            mGLTextureId = GLUtil.loadTexture(frame, width, height, mGLTextureId);
+            postProcessedTask.run();
+
+            if (!isPaused()) {
+                drawingResumed();
+            }
+        });
     }
 
     /**
@@ -204,30 +221,18 @@ public class GLRender
     }
 
     public void switchFilter() {
-        runOnDraw(new Runnable() {
-            @Override
-            public void run() {
-                mEnableFilter = !mEnableFilter;
-                GLFilterGroup oldFilter = mFilter;
-                mFilter = mEnableFilter ? mDesiredFilter : mIdleFilterGroup;
-                if (oldFilter != null) {
-                    oldFilter.destroy();
-                }
-                mFilter.updateMergedFilters();
-                mFilter.init();
-                GLES20.glUseProgram(mFilter.getProgram());
-                mFilter.onOutputSizeChanged(mOutputWidth, mOutputHeight);
-                mFilter.onImageSizeChanged(mVideoWidth, mVideoHeight);
+        runOnDraw(() -> {
+            mEnableFilter = !mEnableFilter;
+            GLFilterGroup oldFilter = mFilter;
+            mFilter = mEnableFilter ? mDesiredFilter : mIdleFilterGroup;
+            if (oldFilter != null) {
+                oldFilter.destroy();
             }
-        });
-    }
-
-    public void switchMirror() {
-        runOnDraw(new Runnable() {
-            @Override
-            public void run() {
-                mEnableMirror = !mEnableMirror;
-            }
+            mFilter.updateMergedFilters();
+            mFilter.init();
+            GLES20.glUseProgram(mFilter.getProgram());
+            mFilter.onOutputSizeChanged(mOutputWidth, mOutputHeight);
+            mFilter.onImageSizeChanged(mVideoWidth, mVideoHeight);
         });
     }
 
@@ -240,187 +245,28 @@ public class GLRender
         mIsPaused = false;
     }
 
-    private synchronized void drawingResumed() {
+    public synchronized void drawingResumed() {
         mIsDrawing = true;
     }
 
-    private synchronized boolean isPaused() {
+    public synchronized boolean isPaused() {
         return mIsPaused;
+    }
+
+    public synchronized boolean isEnableFilter() {
+        return mEnableFilter;
     }
 
     private synchronized boolean isResumed() {
         return mIsDrawing;
     }
 
-    public synchronized void cameraSwitched() {
-        mIsFrontCamera = !mIsFrontCamera;
-    }
-
-    @Override
-    public void onFrameData(final byte[] data, final int width, final int height,
-            final Runnable postProcessedTask) {
-        if (mGLRgbaBuffer == null) {
-            mGLRgbaBuffer = ByteBuffer.allocateDirect(width * height * 4);
-        }
-        if (mGLYuvBuffer == null) {
-            // 16 bytes alignment
-            int bufHeight = (width * mOutputWidth / mOutputHeight) & 0xfffffff0;
-            mGLYuvBuffer = ByteBuffer.allocateDirect(width * bufHeight * 3 / 2);
-        }
-        if (mRunOnDraw.isEmpty()) {
-            runOnDraw(new Runnable() {
-                @Override
-                public void run() {
-                    if (isPaused()) {
-                        postProcessedTask.run();
-                        return;
-                    }
-                    if (mImageWidth == 0) {
-                        mImageWidth = width;
-                        mImageHeight = height;
-                        mVideoWidth = mImageWidth;
-                        // 16 bytes alignment
-                        mVideoHeight = (mImageWidth * mOutputWidth / mOutputHeight) & 0xfffffff0;
-                        mFilter.onImageSizeChanged(mVideoWidth, mVideoHeight);
-                        mVideoCaptureCallback.onVideoSizeChanged(mVideoWidth, mVideoHeight);
-                        adjustImageScaling();
-                    }
-                    if (!mEnableFilter) {
-                        sendNormalImage(width, height, data);
-                    }
-                    RgbYuvConverter.yuv2rgba(width, height, data, mGLRgbaBuffer.array());
-                    yuv2rgba = System.nanoTime();
-
-                    mGLTextureId = GLUtils.loadTexture(mGLRgbaBuffer, width, height, mGLTextureId);
-                    postProcessedTask.run();
-
-                    if (!isPaused()) {
-                        drawingResumed();
-                    }
-                }
-            });
-        }
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    @Override
-    public void onFrameData(final Image image, final Runnable postProcessedTask) {
-        final int width = image.getWidth();
-        final int height = image.getHeight();
-        if (mGLRgbaBuffer == null) {
-            mGLRgbaBuffer = ByteBuffer.allocateDirect(width * height * 4);
-        }
-        if (mGLYuvBuffer == null) {
-            // 16 bytes alignment
-            int bufHeight = (width * mOutputWidth / mOutputHeight) & 0xfffffff0;
-            mGLYuvBuffer = ByteBuffer.allocateDirect(width * bufHeight * 3 / 2);
-        }
-        if (mRunOnDraw.isEmpty()) {
-            runOnDraw(new Runnable() {
-                @Override
-                public void run() {
-                    if (isPaused()) {
-                        postProcessedTask.run();
-                        return;
-                    }
-                    if (mImageWidth == 0) {
-                        mImageWidth = width;
-                        mImageHeight = height;
-                        mVideoWidth = mImageWidth;
-                        // 16 bytes alignment
-                        mVideoHeight = (mImageWidth * mOutputWidth / mOutputHeight) & 0xfffffff0;
-                        mFilter.onImageSizeChanged(mVideoWidth, mVideoHeight);
-                        mVideoCaptureCallback.onVideoSizeChanged(mVideoWidth, mVideoHeight);
-                        adjustImageScaling();
-                    }
-                    if (!mEnableFilter) {
-                        sendNormalImage(image);
-                    }
-                    RgbYuvConverter.image2rgba(image, mGLRgbaBuffer.array());
-                    yuv2rgba = System.nanoTime();
-
-                    mGLTextureId = GLUtils.loadTexture(mGLRgbaBuffer, width, height, mGLTextureId);
-                    postProcessedTask.run();
-
-                    if (!isPaused()) {
-                        drawingResumed();
-                    }
-                }
-            });
-        } else {
-            postProcessedTask.run();
-        }
-    }
-
-    @Override
-    public void imageDumped(ByteBuffer rgba, int width, int height) {
-        sendBeautifyImage(rgba, width, height);
-    }
-
-    private void sendNormalImage(int width, int height, byte[] data) {
-        if (mIsFrontCamera && mEnableMirror) {
-            if (mRotation == Rotation.ROTATION_90) {
-                RgbYuvConverter.yuvCropFlip(width, height, data, mVideoHeight,
-                        mGLYuvBuffer.array());
-            } else {
-                RgbYuvConverter.yuvCropRotateC180Flip(width, height, data, mVideoHeight,
-                        mGLYuvBuffer.array());
-            }
-        } else {
-            if (mRotation == Rotation.ROTATION_90) {
-                RgbYuvConverter.yuvCropRotateC180(width, height, data, mVideoHeight,
-                        mGLYuvBuffer.array());
-            } else {
-                RgbYuvConverter.yuvCrop(width, height, data, mVideoHeight, mGLYuvBuffer.array());
-            }
-        }
-        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), width, mVideoHeight);
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void sendNormalImage(Image image) {
-        if (mIsFrontCamera && mEnableMirror) {
-            if (mRotation == Rotation.ROTATION_90) {
-                RgbYuvConverter.image2yuvCropFlip(image, mVideoHeight, mGLYuvBuffer.array());
-            } else {
-                RgbYuvConverter.image2yuvCropRotateC180Flip(image, mVideoHeight,
-                        mGLYuvBuffer.array());
-            }
-        } else {
-            if (mRotation == Rotation.ROTATION_90) {
-                RgbYuvConverter.image2yuvCropRotateC180(image, mVideoHeight, mGLYuvBuffer.array());
-            } else {
-                RgbYuvConverter.image2yuvCrop(image, mVideoHeight, mGLYuvBuffer.array());
-            }
-        }
-        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), image.getWidth(), mVideoHeight);
-    }
-
-    private void sendBeautifyImage(ByteBuffer rgba, int width, int height) {
-        if (mIsFrontCamera) {
-            if (mEnableMirror) {
-                RgbYuvConverter.rgba2yuvRotateC90(width, height, rgba.array(),
-                        mGLYuvBuffer.array());
-            } else {
-                RgbYuvConverter.rgba2yuvRotateC90Flip(width, height, rgba.array(),
-                        mGLYuvBuffer.array());
-            }
-        } else {
-            RgbYuvConverter.rgba2yuvRotateC90(width, height, rgba.array(), mGLYuvBuffer.array());
-        }
-        rgba2yuv = System.nanoTime();
-        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), height, width);
-    }
-
-    public void setUpSurfaceTexture(final SurfaceTextureInitCallback callback) {
-        runOnDraw(new Runnable() {
-            @Override
-            public void run() {
-                int[] textures = new int[1];
-                GLES20.glGenTextures(1, textures, 0);
-                mSurfaceTexture = new SurfaceTexture(textures[0]);
-                callback.onSurfaceTextureInitiated(mSurfaceTexture);
-            }
+    public void setUpSurfaceTexture(final SurfaceInitCallback callback) {
+        runOnDraw(() -> {
+            int[] textures = new int[1];
+            GLES20.glGenTextures(1, textures, 0);
+            mSurfaceTexture = new SurfaceTexture(textures[0]);
+            callback.onSurfaceTextureInitiated(mSurfaceTexture);
         });
     }
 
@@ -428,12 +274,20 @@ public class GLRender
         mScaleType = scaleType;
     }
 
-    protected int getFrameWidth() {
+    public int getFrameWidth() {
         return mOutputWidth;
     }
 
-    protected int getFrameHeight() {
+    public int getFrameHeight() {
         return mOutputHeight;
+    }
+
+    public int getVideoWidth() {
+        return mVideoWidth;
+    }
+
+    public int getVideoHeight() {
+        return mVideoHeight;
     }
 
     private void adjustImageScaling() {
@@ -516,6 +370,10 @@ public class GLRender
         return mFlipVertical;
     }
 
+    public boolean isBusyDrawing() {
+        return !mRunOnDraw.isEmpty();
+    }
+
     protected void runOnDraw(final Runnable runnable) {
         synchronized (mRunOnDraw) {
             mRunOnDraw.add(runnable);
@@ -532,5 +390,9 @@ public class GLRender
         synchronized (mRunOnDrawEnd) {
             mRunOnDrawEnd.add(runnable);
         }
+    }
+
+    public interface VideoSizeChangedListener {
+        void onVideoSizeChanged(int width, int height);
     }
 }

@@ -27,7 +27,8 @@ package com.github.piasy.cameracompat.example;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.view.View;
+import butterknife.ButterKnife;
+import butterknife.OnClick;
 import com.github.piasy.cameracompat.CameraCompat;
 import com.yolo.livesdk.YoloLiveNative;
 
@@ -41,26 +42,31 @@ public class MainActivity extends AppCompatActivity {
         YoloLiveNative.init(getApplicationContext(), true);
 
         setContentView(R.layout.activity_main);
+        ButterKnife.bind(this);
+    }
 
-        findViewById(R.id.mBtnPublish).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, PublishActivity.class));
-            }
-        });
+    @OnClick(R2.id.mBtnPublish)
+    public void publish() {
+        startActivity(PublishActivityAutoBundle.createIntentBuilder(false).build(this));
+    }
 
-        findViewById(R.id.mBtnWatch).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, WatchActivity.class));
-            }
-        });
+    @OnClick(R2.id.mBtnBeautifyPublish)
+    public void beautifyPublish() {
+        startActivity(PublishActivityAutoBundle.createIntentBuilder(true).build(this));
+    }
 
-        findViewById(R.id.mBtnProfiling).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, ProfilingActivity.class));
-            }
-        });
+    @OnClick(R2.id.mBtnWatch)
+    public void watch() {
+        startActivity(new Intent(this, WatchActivity.class));
+    }
+
+    @OnClick(R2.id.mBtnProfiling)
+    public void profiling() {
+        startActivity(new Intent(this, ProfilingActivity.class));
+    }
+
+    @OnClick(R2.id.mBtnQrScan)
+    public void qrScan() {
+        startActivity(new Intent(this, QrScanActivity.class));
     }
 }

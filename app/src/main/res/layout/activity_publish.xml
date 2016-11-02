@@ -37,8 +37,8 @@
     <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:orientation="horizontal"
+            android:layout_gravity="bottom|right"
+            android:orientation="vertical"
             >
         <Button
                 android:id="@+id/mBtnSwitchBeautify"
@@ -67,6 +67,20 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:text="Mirror"
+                />
+        <Button
+                android:id="@+id/mBtnSwitchVisibility"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="Visibility"
+                />
+        <Button
+                android:id="@+id/mBtnResize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="Resize"
                 />
     </LinearLayout>
 </FrameLayout>

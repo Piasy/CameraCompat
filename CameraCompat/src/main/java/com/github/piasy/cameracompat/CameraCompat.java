@@ -31,16 +31,22 @@ import android.support.annotation.IdRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.WorkerThread;
 import android.support.v4.app.FragmentManager;
-import com.github.piasy.cameracompat.gpuimage.RgbYuvConverter;
-import com.github.piasy.cameracompat.internal.Camera1PreviewFragment;
-import com.github.piasy.cameracompat.internal.Camera1PreviewFragmentBuilder;
-import com.github.piasy.cameracompat.internal.Camera2PreviewFragment;
-import com.github.piasy.cameracompat.internal.Camera2PreviewFragmentBuilder;
-import com.github.piasy.cameracompat.internal.events.SwitchBeautifyEvent;
-import com.github.piasy.cameracompat.internal.events.SwitchCameraEvent;
-import com.github.piasy.cameracompat.internal.events.SwitchFlashEvent;
-import com.github.piasy.cameracompat.internal.events.SwitchMirrorEvent;
+import com.github.piasy.cameracompat.compat.Camera1PreviewFragment;
+import com.github.piasy.cameracompat.compat.Camera1PreviewFragmentBuilder;
+import com.github.piasy.cameracompat.compat.Camera2PreviewFragment;
+import com.github.piasy.cameracompat.compat.Camera2PreviewFragmentBuilder;
+import com.github.piasy.cameracompat.compat.events.SwitchBeautifyEvent;
+import com.github.piasy.cameracompat.compat.events.SwitchCameraEvent;
+import com.github.piasy.cameracompat.compat.events.SwitchFlashEvent;
+import com.github.piasy.cameracompat.compat.events.SwitchMirrorEvent;
+import com.github.piasy.cameracompat.processor.DirectChain;
+import com.github.piasy.cameracompat.processor.GPUImageChain;
+import com.github.piasy.cameracompat.processor.Processor;
+import com.github.piasy.cameracompat.processor.ProcessorChain;
+import com.github.piasy.cameracompat.processor.RgbYuvConverter;
 import com.github.piasy.cameracompat.utils.Profiler;
+import java.util.ArrayList;
+import java.util.List;
 import org.greenrobot.eventbus.EventBus;
 
 /**
@@ -62,9 +68,11 @@ public final class CameraCompat {
     private final boolean mIsBeautifyOn;
     private final boolean mIsMirrorEnabled;
     private final EventBus mEventBus;
+    private final ProcessorChain mProcessorChain;
     private final Profiler mProfiler;
     private final VideoCaptureCallback mVideoCaptureCallback;
     private final ErrorHandler mErrorHandler;
+
     private CameraCompat(Builder builder) {
         mPreviewWidth = builder.mPreviewWidth;
         mPreviewHeight = builder.mPreviewHeight;
@@ -79,6 +87,13 @@ public final class CameraCompat {
             mProfiler = new Profiler(builder.mMetricListener);
         } else {
             mProfiler = null;
+        }
+        if (builder.mProcessors.isEmpty()) {
+            mProcessorChain = new DirectChain(mIsFrontCamera, mVideoCaptureCallback, mPreviewWidth,
+                    mPreviewHeight);
+        } else {
+            mProcessorChain = new GPUImageChain(builder.mProcessors, mIsBeautifyOn,
+                    mIsFrontCamera, mVideoCaptureCallback, mProfiler);
         }
     }
 
@@ -119,7 +134,7 @@ public final class CameraCompat {
         // https://attiapp.wordpress.com/2015/06/28/convert-yuv_420_888-to-rgb-with-camera2-api-2/
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
             if (savedInstance == null
-                    || fragmentManager.findFragmentByTag(CAMERA_PREVIEW_FRAGMENT) == null) {
+                || fragmentManager.findFragmentByTag(CAMERA_PREVIEW_FRAGMENT) == null) {
                 Camera2PreviewFragment fragment =
                         Camera2PreviewFragmentBuilder.newCamera2PreviewFragment(mIsBeautifyOn,
                                 mIsFlashOpen, mIsFrontCamera, mIsMirrorEnabled, mPreviewHeight,
@@ -131,7 +146,7 @@ public final class CameraCompat {
             }
         } else {
             if (savedInstance == null
-                    || fragmentManager.findFragmentByTag(CAMERA_PREVIEW_FRAGMENT) == null) {
+                || fragmentManager.findFragmentByTag(CAMERA_PREVIEW_FRAGMENT) == null) {
                 Camera1PreviewFragment fragment =
                         Camera1PreviewFragmentBuilder.newCamera1PreviewFragment(mIsBeautifyOn,
                                 mIsFlashOpen, mIsFrontCamera, mIsMirrorEnabled, mPreviewHeight,
@@ -173,12 +188,20 @@ public final class CameraCompat {
         return mVideoCaptureCallback;
     }
 
+    public ProcessorChain getProcessorChain() {
+        return mProcessorChain;
+    }
+
     /**
      * Video will have the specified width, but the height will be trimmed.
      *
      * width > height
      */
     public interface VideoCaptureCallback {
+        /**
+         * will be called only once, just before the first call of {@link #onFrameData(byte[], int,
+         * int)} with new size.
+         */
         @WorkerThread
         void onVideoSizeChanged(int width, int height);
 
@@ -198,6 +221,7 @@ public final class CameraCompat {
     public static final class Builder {
         private final VideoCaptureCallback mVideoCaptureCallback;
         private final ErrorHandler mErrorHandler;
+        private final List<Processor> mProcessors;
         private int mPreviewWidth = DEFAULT_WIDTH;
         private int mPreviewHeight = DEFAULT_HEIGHT;
         private boolean mIsFrontCamera;
@@ -210,6 +234,7 @@ public final class CameraCompat {
         public Builder(VideoCaptureCallback videoCaptureCallback, ErrorHandler errorHandler) {
             mVideoCaptureCallback = videoCaptureCallback;
             mErrorHandler = errorHandler;
+            mProcessors = new ArrayList<>();
         }
 
         public Builder previewWidth(int previewWidth) {
@@ -244,6 +269,11 @@ public final class CameraCompat {
 
         public Builder eventBus(EventBus eventBus) {
             mEventBus = eventBus;
+            return this;
+        }
+
+        public Builder addProcessor(Processor processor) {
+            mProcessors.add(processor);
             return this;
         }
 

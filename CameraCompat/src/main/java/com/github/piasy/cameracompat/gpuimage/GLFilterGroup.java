@@ -26,6 +26,7 @@ package com.github.piasy.cameracompat.gpuimage;
 
 import android.annotation.SuppressLint;
 import android.opengl.GLES20;
+import com.github.piasy.cameracompat.utils.GLUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -35,7 +36,6 @@ import jp.co.cyberagent.android.gpuimage.GPUImageFilter;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
-import static com.github.piasy.cameracompat.gpuimage.GLRender.readPixels;
 import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE_NO_ROTATION;
 
 /**
@@ -43,11 +43,11 @@ import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE
  */
 public class GLFilterGroup extends GPUImageFilter {
 
+    protected List<GPUImageFilter> mFilters;
+    protected List<GPUImageFilter> mMergedFilters;
     private final FloatBuffer mGLCubeBuffer;
     private final FloatBuffer mGLTextureBuffer;
     private final FloatBuffer mGLTextureFlipBuffer;
-    protected List<GPUImageFilter> mFilters;
-    protected List<GPUImageFilter> mMergedFilters;
     private int[] mFrameBuffers;
     private int[] mFrameBufferTextures;
     private ImageDumpedListener mImageDumpedListener;
@@ -85,7 +85,7 @@ public class GLFilterGroup extends GPUImageFilter {
         mGLTextureFlipBuffer.put(flipTexture).position(0);
     }
 
-    void setImageDumpedListener(ImageDumpedListener imageDumpedListener) {
+    public void setImageDumpedListener(ImageDumpedListener imageDumpedListener) {
         mImageDumpedListener = imageDumpedListener;
     }
 
@@ -107,7 +107,7 @@ public class GLFilterGroup extends GPUImageFilter {
      */
     @Override
     public void onDestroy() {
-        destroyFramebuffers();
+        destroyFrameBuffers();
         for (GPUImageFilter filter : mFilters) {
             filter.destroy();
         }
@@ -124,7 +124,7 @@ public class GLFilterGroup extends GPUImageFilter {
     public void onOutputSizeChanged(final int width, final int height) {
         super.onOutputSizeChanged(width, height);
         if (mFrameBuffers != null) {
-            destroyFramebuffers();
+            destroyFrameBuffers();
         }
 
         int size = mFilters.size();
@@ -207,7 +207,7 @@ public class GLFilterGroup extends GPUImageFilter {
             }
             if (i == size - 2 && mOutputWidth * mOutputHeight != 0) {
                 // just before last filter, read data from GPU
-                sendImage(mOutputWidth, mOutputHeight);
+                dumpImage(mOutputWidth, mOutputHeight);
             }
 
             if (!isLast) {
@@ -217,7 +217,7 @@ public class GLFilterGroup extends GPUImageFilter {
         }
     }
 
-    private void destroyFramebuffers() {
+    private void destroyFrameBuffers() {
         if (mFrameBufferTextures != null) {
             GLES20.glDeleteTextures(mFrameBufferTextures.length, mFrameBufferTextures, 0);
             mFrameBufferTextures = null;
@@ -235,14 +235,13 @@ public class GLFilterGroup extends GPUImageFilter {
         onOutputSizeChanged(mOutputWidth, mOutputHeight);
     }
 
-    private void sendImage(int width, int height) {
+    private void dumpImage(int width, int height) {
         if (mImageDumpedListener == null) {
             return;
         }
         mRgbaBuf.position(0);
         GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, mRgbaBuf);
-        GLUtils.dumpGlError("glReadPixels");
-        readPixels = System.nanoTime();
+        GLUtil.dumpGlError("glReadPixels");
         mImageDumpedListener.imageDumped(mRgbaBuf, width, height);
     }
 

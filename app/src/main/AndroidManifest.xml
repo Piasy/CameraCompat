@@ -48,6 +48,9 @@
         </activity>
         <activity android:name=".WatchActivity">
         </activity>
+        <activity
+                android:name=".QrScanActivity">
+        </activity>
     </application>
 
 </manifest>
