@@ -25,10 +25,12 @@
 package com.github.piasy.cameracompat.internal;
 
 import android.annotation.TargetApi;
+import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.media.ImageReader;
@@ -38,8 +40,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.view.Surface;
+import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.gpuimage.SurfaceTextureInitCallback;
 import com.hannesdorfmann.fragmentargs.annotation.FragmentWithArgs;
 import java.util.Arrays;
@@ -51,10 +53,7 @@ import jp.co.cyberagent.android.gpuimage.Rotation;
 public class Camera2PreviewFragment extends PreviewFragment
         implements Camera2Helper.CameraController {
 
-    private static final String TAG = "Camera2PreviewFragment";
-
-    private Camera2Helper mCameraHelper;
-    private Camera2PreviewCallback mCameraFrameCallback;
+    private Camera2Helper mCamera2Helper;
 
     public Camera2PreviewFragment() {
         // Required empty public constructor
@@ -67,37 +66,22 @@ public class Camera2PreviewFragment extends PreviewFragment
     }
 
     @Override
-    protected void startPreview() {
-        mCameraHelper.startPreview(mCameraFrameCallback);
-    }
-
-    @Override
-    protected void stopPreview() {
-        mCameraHelper.stopPreview();
-    }
-
-    @Override
-    protected void switchCamera() {
-        mRenderer.pauseDrawing();
-        mCameraHelper.switchCamera(mCameraFrameCallback);
-        mRenderer.cameraSwitched();
-    }
-
-    @Override
-    protected void switchFlash() {
-        mCameraHelper.switchFlash();
-    }
-
-    @Override
-    protected void initFields() {
-        super.initFields();
+    protected CameraHelper createCameraHelper() {
         try {
-            mCameraHelper = new Camera2Helper(getActivity(), this, mPreviewWidth, mPreviewHeight,
-                    mIsDefaultFrontCamera);
-            mCameraFrameCallback = new Camera2PreviewCallback(mRenderer);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+            CameraManager cameraManager =
+                    (CameraManager) getActivity().getSystemService(Context.CAMERA_SERVICE);
+            int activityRotation =
+                    getActivity().getWindowManager().getDefaultDisplay().getRotation();
+            mCamera2Helper = new Camera2Helper(mPreviewWidth, mPreviewHeight, activityRotation,
+                    mIsDefaultFrontCamera, this, cameraManager,
+                    new Camera2PreviewCallback(mRenderer));
+        } catch (CameraAccessException | SecurityException e) {
+            CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+        } catch (AssertionError e) {
+            // http://crashes.to/s/7e3aebc3390
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
+        return mCamera2Helper;
     }
 
     /**
@@ -106,7 +90,10 @@ public class Camera2PreviewFragment extends PreviewFragment
     private void startPreviewDirectly(final CameraDevice cameraDevice, List<Surface> targets,
             final boolean isFlashOn, final Handler cameraHandler) {
         try {
-
+            if (cameraDevice == null) {
+                CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+                return;
+            }
             final CaptureRequest.Builder captureRequestBuilder =
                     cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             for (int i = 0, size = targets.size(); i < size; i++) {
@@ -123,22 +110,28 @@ public class Camera2PreviewFragment extends PreviewFragment
                                 isFlashOn ? CameraMetadata.FLASH_MODE_TORCH
                                         : CameraMetadata.FLASH_MODE_OFF);
 
-                        cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(),
-                                null, cameraHandler);
-                        mCameraHelper.previewSessionStarted(cameraCaptureSession);
-                        mRenderer.resumeDrawing();
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
+                        try {
+                            cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(),
+                                    null, cameraHandler);
+                            mCamera2Helper.previewSessionStarted(cameraCaptureSession);
+                            mRenderer.resumeDrawing();
+                        } catch (IllegalStateException e) {
+                            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+                        }
+                    } catch (CameraAccessException | SecurityException e) {
+                        CameraCompat.onError(CameraCompat.ERR_PERMISSION);
                     }
                 }
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    Log.e(TAG, "createCaptureSession::onConfigureFailed");
+                    CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
                 }
             }, cameraHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
+        } catch (CameraAccessException | SecurityException e) {
+            CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+        } catch (IllegalStateException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
     }
 
@@ -155,7 +148,7 @@ public class Camera2PreviewFragment extends PreviewFragment
                 surfaceTexture.setDefaultBufferSize(mPreviewWidth, mPreviewHeight);
                 Surface surface = new Surface(surfaceTexture);
                 List<Surface> targets = Arrays.asList(surface, imageReader.getSurface());
-                mCameraHelper.outputTargetChanged(targets);
+                mCamera2Helper.outputTargetChanged(targets);
                 startPreviewDirectly(cameraDevice, targets, mIsDefaultFlashOpen, cameraHandler);
             }
         });

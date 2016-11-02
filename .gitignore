@@ -2,8 +2,6 @@
 .idea
 .gradle
 /local.properties
-/.idea/workspace.xml
-/.idea/libraries
 .DS_Store
 **/build
 /captures
@@ -13,3 +11,5 @@
 /livesdk
 /CameraCompat/src/main/java/tv/yoloyolo/ios/beautify
 /CameraCompat/src/main/res/drawable/map.png
+/android-live-sdk
+install.sh

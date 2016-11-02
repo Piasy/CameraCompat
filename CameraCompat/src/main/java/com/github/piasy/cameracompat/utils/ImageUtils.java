@@ -114,21 +114,24 @@ public class ImageUtils {
             yuvOut[size + i * 2 + 1] = Cb.get(i * CbPixelStride);
         }
         try {
-            File file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.y");
+            File file = new File(
+                    Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.y");
             FileOutputStream outputStream = new FileOutputStream(file);
             byte[] bytes = new byte[Y.remaining()];
             Y.get(bytes);
             outputStream.write(bytes);
             outputStream.close();
 
-            file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.cb");
+            file = new File(
+                    Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.cb");
             outputStream = new FileOutputStream(file);
             bytes = new byte[Cb.remaining()];
             Cb.get(bytes);
             outputStream.write(bytes);
             outputStream.close();
 
-            file = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.cr");
+            file = new File(
+                    Environment.getExternalStorageDirectory().getAbsolutePath() + "/dump.cr");
             outputStream = new FileOutputStream(file);
             bytes = new byte[Cr.remaining()];
             Cr.get(bytes);
@@ -141,10 +144,14 @@ public class ImageUtils {
 
     public static void saveRgb2Bitmap(Buffer buf, String filename, int width, int height) {
         // Save the generated bitmap to a PNG so we can see what it looks like.
-        Log.d("CameraCompat", "Creating " + Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + filename);
+        Log.d("CameraCompat", "Creating "
+                + Environment.getExternalStorageDirectory().getAbsolutePath()
+                + "/"
+                + filename);
         BufferedOutputStream bos = null;
         try {
-            bos = new BufferedOutputStream(new FileOutputStream(Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + filename));
+            bos = new BufferedOutputStream(new FileOutputStream(
+                    Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + filename));
             Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             bmp.copyPixelsFromBuffer(buf);
             bmp.compress(Bitmap.CompressFormat.PNG, 90, bos);
@@ -165,7 +172,13 @@ public class ImageUtils {
     public static void saveRawRgbData(ByteBuffer buf, int width, int height, String prefix) {
         // Save the generated bitmap to a PNG so we can see what it looks like.
         String filename = Environment.getExternalStorageDirectory().getAbsolutePath()
-                + "/" + prefix + "_" + width + "_" + height + ".rgb";
+                + "/"
+                + prefix
+                + "_"
+                + width
+                + "_"
+                + height
+                + ".rgb";
         Log.d("CameraCompat", "Creating " + filename);
         FileOutputStream outputStream;
         try {
@@ -180,7 +193,11 @@ public class ImageUtils {
     public static void saveRawRgbData(byte[] buf, int width, int height) {
         // Save the generated bitmap to a PNG so we can see what it looks like.
         String filename = Environment.getExternalStorageDirectory().getAbsolutePath()
-                + "/dump_r_" + width + "_" + height + ".rgb";
+                + "/dump_r_"
+                + width
+                + "_"
+                + height
+                + ".rgb";
         Log.d("CameraCompat", "Creating " + filename);
         FileOutputStream outputStream;
         try {
@@ -195,7 +212,13 @@ public class ImageUtils {
     public static void saveRawYuvData(byte[] buf, int width, int height, String prefix) {
         // Save the generated bitmap to a PNG so we can see what it looks like.
         String filename = Environment.getExternalStorageDirectory().getAbsolutePath()
-                + "/" + prefix + "_" + width + "_" + height + ".yuv";
+                + "/"
+                + prefix
+                + "_"
+                + width
+                + "_"
+                + height
+                + ".yuv";
         Log.d("CameraCompat", "Creating " + filename);
         FileOutputStream outputStream;
         try {

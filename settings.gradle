@@ -1,1 +1,1 @@
-include ':app', ':CameraCompat', ':livesdk'
+include ':app', ':CameraCompat', ':android-live-sdk'

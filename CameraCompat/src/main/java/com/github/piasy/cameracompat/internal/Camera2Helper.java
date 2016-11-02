@@ -25,8 +25,6 @@
 package com.github.piasy.cameracompat.internal;
 
 import android.annotation.TargetApi;
-import android.app.Activity;
-import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -39,69 +37,61 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
+import android.text.TextUtils;
 import android.util.Size;
 import android.view.Surface;
-import android.view.WindowManager;
+import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.cameracompat.internal.events.CameraAccessError;
 import java.util.List;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-class Camera2Helper extends CameraDevice.StateCallback {
+class Camera2Helper extends CameraHelper {
 
-    interface CameraController {
-        void onOpened(final CameraDevice cameraDevice, final ImageReader imageReader,
-                final Handler cameraHandler, final Rotation rotation, final boolean flipHorizontal,
-                final boolean flipVertical);
-
-        void onSettingsChanged(final CameraDevice cameraDevice, final List<Surface> targets,
-                final boolean isFlashOn, final Handler cameraHandler);
-    }
-
+    private final CameraController mCameraController;
+    private final Camera2PreviewCallback mPreviewCallback;
+    private final CameraManager mCameraManager;
     private String mFrontCameraId;
     private String mBackCameraId;
-
-    private boolean mIsFront;
-    private boolean mFlashLightOn;
-    private final CameraController mCameraController;
     private CameraDevice mCameraDevice;
     private HandlerThread mBackgroundThread;
     private Handler mCamera2Handler;
     private CameraCaptureSession mCaptureSession;
     private ImageReader mImageReader;
+    private final CameraDevice.StateCallback mCameraCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(@NonNull CameraDevice camera) {
+            try {
+                mCameraDevice = camera;
+                mCameraController.onOpened(mCameraDevice, mImageReader, mCamera2Handler,
+                        getRotation(), mIsFront, false);
+            } catch (IllegalStateException e) {
+                CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+            }
+        }
+
+        @Override
+        public void onDisconnected(@NonNull CameraDevice camera) {
+            camera.close();
+            mCameraDevice = null;
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice camera, int error) {
+            camera.close();
+            mCameraDevice = null;
+        }
+    };
     private List<Surface> mOutputTargets;
 
-    private final WindowManager mWindowManager;
-    private final CameraManager mCameraManager;
-
-    private final int mDesiredWidth;
-    private final int mDesiredHeight;
-
-    Camera2Helper(Activity activity, CameraController cameraController, int width, int height,
-            boolean isFront) throws CameraAccessException {
-        mIsFront = isFront;
+    Camera2Helper(int previewWidth, int previewHeight, int activityRotation, boolean isFront,
+            CameraController cameraController, CameraManager cameraManager,
+            Camera2PreviewCallback previewCallback) throws CameraAccessException {
+        super(previewWidth, previewHeight, activityRotation, isFront);
         mCameraController = cameraController;
-        mCameraManager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
-        mWindowManager = activity.getWindowManager();
-        mDesiredWidth = width;
-        mDesiredHeight = height;
+        mCameraManager = cameraManager;
+        mPreviewCallback = previewCallback;
         initCameraIds();
-    }
-
-    boolean startPreview(ImageReader.OnImageAvailableListener availableListener) {
-        try {
-            mBackgroundThread = new HandlerThread("PreviewFragmentV21Thread");
-            mBackgroundThread.start();
-            mCamera2Handler = new Handler(mBackgroundThread.getLooper());
-            Size size = findOptSize(getCurrentCameraId());
-            mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(),
-                    ImageFormat.YUV_420_888, 2);
-            mImageReader.setOnImageAvailableListener(availableListener, mCamera2Handler);
-            mCameraManager.openCamera(getCurrentCameraId(), this, mCamera2Handler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-            return false;
-        }
-        return true;
     }
 
     void previewSessionStarted(CameraCaptureSession captureSession) {
@@ -112,7 +102,31 @@ class Camera2Helper extends CameraDevice.StateCallback {
         mOutputTargets = targets;
     }
 
-    boolean stopPreview() {
+    @Override
+    protected boolean startPreview() {
+        try {
+            mBackgroundThread = new HandlerThread("PreviewFragmentV21Thread");
+            mBackgroundThread.start();
+            mCamera2Handler = new Handler(mBackgroundThread.getLooper());
+            Size size = findOptSize(getCurrentCameraId());
+            mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(),
+                    ImageFormat.YUV_420_888, 2);
+            mImageReader.setOnImageAvailableListener(mPreviewCallback, mCamera2Handler);
+            mCameraManager.openCamera(getCurrentCameraId(), mCameraCallback, mCamera2Handler);
+        } catch (SecurityException | CameraAccessException | IllegalStateException e) {
+            CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+            return false;
+        } catch (RuntimeException e) {
+            // http://crashes.to/s/3a4227c2262
+            // http://crashes.to/s/17d9761180d
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    protected boolean stopPreview() {
         try {
             if (null != mCaptureSession) {
                 mCaptureSession.close();
@@ -128,42 +142,62 @@ class Camera2Helper extends CameraDevice.StateCallback {
                 mBackgroundThread = null;
                 mCamera2Handler = null;
             }
-            mImageReader.setOnImageAvailableListener(null, null);
+            if (mImageReader != null) {
+                // http://crashes.to/s/099a8255d2b
+                mImageReader.setOnImageAvailableListener(null, null);
+            }
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
             return false;
         }
         return true;
     }
 
-    boolean switchCamera(ImageReader.OnImageAvailableListener availableListener) {
-        if (!stopPreview()) {
-            return false;
+    @Override
+    protected int getSensorDegree() {
+        CameraCharacteristics characteristics;
+        Integer orientation = null;
+        try {
+            characteristics = mCameraManager.getCameraCharacteristics(getCurrentCameraId());
+            orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        } catch (CameraAccessException | SecurityException e) {
+            CameraCompat.onError(CameraCompat.ERR_PERMISSION);
         }
-        mIsFront = !mIsFront;
-        return startPreview(availableListener);
+        return orientation == null ? 0 : orientation;
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
-    boolean switchFlash() {
-        if (mIsFront) {
-            return false;
-        }
+    @Override
+    protected boolean canOperateFlash() {
+        return mCameraDevice != null;
+    }
+
+    @Override
+    protected void doOpenFlash() throws RuntimeException {
         try {
-            CameraCharacteristics characteristics =
-                    mCameraManager.getCameraCharacteristics(mBackCameraId);
-            Boolean available = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-            boolean flashSupported = available == null ? false : available;
-            if (!flashSupported) {
-                return false;
-            }
-            mFlashLightOn = !mFlashLightOn;
-            mCameraController.onSettingsChanged(mCameraDevice, mOutputTargets, mFlashLightOn,
-                    mCamera2Handler);
+            operateFlash(true);
         } catch (CameraAccessException e) {
-            e.printStackTrace();
+            throw new CameraAccessError();
         }
-        return false;
+    }
+
+    @Override
+    protected void doCloseFlash() throws RuntimeException {
+        try {
+            operateFlash(false);
+        } catch (CameraAccessException e) {
+            throw new CameraAccessError();
+        }
+    }
+
+    private void operateFlash(boolean isOpen) throws CameraAccessException, SecurityException {
+        CameraCharacteristics characteristics =
+                mCameraManager.getCameraCharacteristics(mBackCameraId);
+        Boolean available = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+        boolean flashSupported = available == null ? false : available;
+        if (!flashSupported) {
+            return;
+        }
+        mCameraController.onSettingsChanged(mCameraDevice, mOutputTargets, isOpen, mCamera2Handler);
     }
 
     private void initCameraIds() throws CameraAccessException {
@@ -187,80 +221,26 @@ class Camera2Helper extends CameraDevice.StateCallback {
         StreamConfigurationMap map =
                 characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         if (map == null) {
-            return new Size(mDesiredWidth, mDesiredHeight);
+            return new Size(mPreviewWidth, mPreviewHeight);
         }
         // TODO: 5/30/16 adjust size
-        return new Size(mDesiredWidth, mDesiredHeight);
+        return new Size(mPreviewWidth, mPreviewHeight);
     }
 
-    private Rotation getRotation(String cameraId) {
-        int rotation = mWindowManager.getDefaultDisplay().getRotation();
-        int degrees = 0;
-        switch (rotation) {
-            case Surface.ROTATION_0:
-                degrees = 0;
-                break;
-            case Surface.ROTATION_90:
-                degrees = 90;
-                break;
-            case Surface.ROTATION_180:
-                degrees = 180;
-                break;
-            case Surface.ROTATION_270:
-                degrees = 270;
-                break;
+    private String getCurrentCameraId() throws IllegalStateException {
+        String id = mIsFront ? mFrontCameraId : mBackCameraId;
+        if (TextUtils.isEmpty(id)) {
+            throw new IllegalStateException("Get a null camera id: " + mIsFront);
         }
-
-        int result;
-        CameraCharacteristics characteristics;
-        Integer orientation = null;
-        try {
-            characteristics = mCameraManager.getCameraCharacteristics(cameraId);
-            orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-        int sensorOrientation = orientation == null ? 0 : orientation;
-        if (mIsFront) {
-            result = (sensorOrientation + degrees) % 360;
-        } else {
-            result = (sensorOrientation - degrees + 360) % 360;
-        }
-        Rotation ret = Rotation.NORMAL;
-        switch (result) {
-            case 90:
-                ret = Rotation.ROTATION_90;
-                break;
-            case 180:
-                ret = Rotation.ROTATION_180;
-                break;
-            case 270:
-                ret = Rotation.ROTATION_270;
-                break;
-        }
-        return ret;
+        return id;
     }
 
-    @Override
-    public void onOpened(@NonNull CameraDevice camera) {
-        mCameraDevice = camera;
-        mCameraController.onOpened(mCameraDevice, mImageReader, mCamera2Handler,
-                getRotation(getCurrentCameraId()), mIsFront, false);
-    }
+    interface CameraController {
+        void onOpened(final CameraDevice cameraDevice, final ImageReader imageReader,
+                final Handler cameraHandler, final Rotation rotation, final boolean flipHorizontal,
+                final boolean flipVertical);
 
-    @Override
-    public void onDisconnected(@NonNull CameraDevice camera) {
-        camera.close();
-        mCameraDevice = null;
-    }
-
-    @Override
-    public void onError(@NonNull CameraDevice camera, int error) {
-        camera.close();
-        mCameraDevice = null;
-    }
-
-    private String getCurrentCameraId() {
-        return mIsFront ? mFrontCameraId : mBackCameraId;
+        void onSettingsChanged(final CameraDevice cameraDevice, final List<Surface> targets,
+                final boolean isFlashOn, final Handler cameraHandler);
     }
 }

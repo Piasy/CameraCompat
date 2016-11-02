@@ -32,6 +32,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.gpuimage.SurfaceTextureInitCallback;
 import com.hannesdorfmann.fragmentargs.annotation.FragmentWithArgs;
 import java.io.IOException;
@@ -45,11 +46,6 @@ import jp.co.cyberagent.android.gpuimage.Rotation;
 public class Camera1PreviewFragment extends PreviewFragment
         implements Camera1Helper.CameraController {
 
-    private static final String TAG = "Camera1PreviewFragment";
-
-    private Camera1Helper mCameraHelper;
-    private Camera1PreviewCallback mCameraFrameCallback;
-
     public Camera1PreviewFragment() {
         // Required empty public constructor
     }
@@ -61,33 +57,10 @@ public class Camera1PreviewFragment extends PreviewFragment
     }
 
     @Override
-    protected void startPreview() {
-        mCameraHelper.startPreview(getActivity());
-    }
-
-    @Override
-    protected void stopPreview() {
-        mCameraHelper.stopPreview();
-    }
-
-    @Override
-    protected void switchCamera() {
-        mRenderer.pauseDrawing();
-        mCameraHelper.switchCamera(getActivity());
-        mRenderer.cameraSwitched();
-    }
-
-    @Override
-    protected void switchFlash() {
-        mCameraHelper.switchFlash();
-    }
-
-    @Override
-    protected void initFields() {
-        super.initFields();
-        mCameraHelper = new Camera1Helper(mPreviewWidth, mPreviewHeight, this,
-                mIsDefaultFrontCamera);
-        mCameraFrameCallback = new Camera1PreviewCallback(mRenderer);
+    protected CameraHelper createCameraHelper() {
+        int activityRotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+        return new Camera1Helper(mPreviewWidth, mPreviewHeight, activityRotation,
+                mIsDefaultFrontCamera, this, new Camera1PreviewCallback(mRenderer));
     }
 
     @Override
@@ -105,12 +78,11 @@ public class Camera1PreviewFragment extends PreviewFragment
 
     private void startPreviewDirectly(SurfaceTexture surfaceTexture, Camera camera) {
         try {
-            camera.setPreviewCallback(mCameraFrameCallback);
             camera.setPreviewTexture(surfaceTexture);
             camera.startPreview();
             mRenderer.resumeDrawing();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException | RuntimeException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
     }
 }

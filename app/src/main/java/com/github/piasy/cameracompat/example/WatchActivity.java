@@ -22,24 +22,16 @@
  * SOFTWARE.
  */
 
-package com.github.piasy.cameracompat.utils;
+package com.github.piasy.cameracompat.example;
 
-import android.app.ActivityManager;
-import android.content.Context;
-import android.content.pm.ConfigurationInfo;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
 
-/**
- * Created by Piasy{github.com/Piasy} on 5/24/16.
- */
-public final class Utils {
-    private Utils() {
-        // no instance
-    }
+public class WatchActivity extends AppCompatActivity {
 
-    public static boolean isSupportOpenGLES2(final Context context) {
-        final ActivityManager activityManager =
-                (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        final ConfigurationInfo configurationInfo = activityManager.getDeviceConfigurationInfo();
-        return configurationInfo.reqGlEsVersion >= 0x20000;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_watch);
     }
 }

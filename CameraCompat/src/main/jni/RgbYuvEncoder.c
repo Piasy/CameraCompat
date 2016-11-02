@@ -222,9 +222,9 @@ JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverte
     jbyte *yuvIn = (*env)->GetPrimitiveArrayCritical(env, yuvIn_, 0);
     jbyte *yuvOut = (*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0);
 
-    int delta = (height - outputHeight_) / 2;
+    int delta = (height - outputHeight_) >> 1;
     int org_size = width * height, crop_size_minus_1 = width * outputHeight_ - 1;
-    int crop_len_minus_1 = width * outputHeight_ * 3 / 2;
+    int crop_len_minus_1 = (width * outputHeight_ * 3) >> 1;
     int y_M_width, y_div_2_M_width, y_minus_delta_M_width, y_minus_delta_div_2_M_width;
     int x, y = delta;
     for (; y < height - delta; y++) {
@@ -236,10 +236,8 @@ JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverte
         for (; x < width; x++) {
             yuvOut[crop_size_minus_1 - y_minus_delta_M_width - x] = yuvIn[y_M_width + x];
             if ((y & 0x1) == 0 && (x & 0x1) == 0) {
-                yuvOut[crop_len_minus_1 - y_minus_delta_div_2_M_width - x] =
-                        yuvIn[org_size + y_div_2_M_width + x];
-                yuvOut[crop_len_minus_1 - y_minus_delta_div_2_M_width - x - 1] =
-                        yuvIn[org_size + y_div_2_M_width + x + 1];
+                yuvOut[crop_len_minus_1 - y_minus_delta_div_2_M_width - x] = yuvIn[org_size + y_div_2_M_width + x];
+                yuvOut[crop_len_minus_1 - y_minus_delta_div_2_M_width - x - 1] = yuvIn[org_size + y_div_2_M_width + x + 1];
             }
         }
     }
@@ -268,10 +266,68 @@ JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverte
         for (; x < width; x++) {
             yuvOut[y_minus_delta_M_width + x] = yuvIn[y_M_width + x];
             if ((y & 0x1) == 0 && (x & 0x1) == 0) {
-                yuvOut[crop_size + y_minus_delta_div_2_M_width + x] =
-                        yuvIn[org_size + y_div_2_M_width + x];
-                yuvOut[crop_size + y_minus_delta_div_2_M_width + x + 1] =
-                        yuvIn[org_size + y_div_2_M_width + x + 1];
+                yuvOut[crop_size + y_minus_delta_div_2_M_width + x] = yuvIn[org_size + y_div_2_M_width + x];
+                yuvOut[crop_size + y_minus_delta_div_2_M_width + x + 1] = yuvIn[org_size + y_div_2_M_width + x + 1];
+            }
+        }
+    }
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvIn_, yuvIn, 0);
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvOut_, yuvOut, 0);
+
+    return 0;
+}
+
+JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverter_yuvCropRotateC180Flip(
+        JNIEnv *env, jobject obj, jint width, jint height, jbyteArray yuvIn_,
+        jint outputHeight_, jbyteArray yuvOut_) {
+    jbyte *yuvIn = (*env)->GetPrimitiveArrayCritical(env, yuvIn_, 0);
+    jbyte *yuvOut = (*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0);
+
+    int delta = (height - outputHeight_) >> 1;
+    int org_size = width * height, crop_size_minus = width * outputHeight_;
+    int y_M_width, y_div_2_M_width, h_minus_1_M_w, h_minus_1_div2_M_w;
+    int x, y = delta, y_end = height - delta;
+    for (; y < y_end; y++) {
+        y_M_width = y * width;
+        y_div_2_M_width = y_M_width >> 1;
+        h_minus_1_M_w = (height - 1 - y - delta) * width;
+        h_minus_1_div2_M_w = ((height - 1 - y - delta) >> 1) * width;
+        x = 0;
+        for (; x < width; x++) {
+            yuvOut[h_minus_1_M_w + x] = yuvIn[y_M_width + x];
+            if ((y & 0x1) == 0 && (x & 0x1) == 0) {
+                yuvOut[crop_size_minus + h_minus_1_div2_M_w + x] = yuvIn[org_size + y_div_2_M_width + x];
+                yuvOut[crop_size_minus + h_minus_1_div2_M_w + x + 1] = yuvIn[org_size + y_div_2_M_width + x + 1];
+            }
+        }
+    }
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvIn_, yuvIn, 0);
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvOut_, yuvOut, 0);
+
+    return 0;
+}
+
+JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverter_yuvCropFlip(
+        JNIEnv *env, jobject obj, jint width, jint height, jbyteArray yuvIn_,
+        jint outputHeight_, jbyteArray yuvOut_) {
+    jbyte *yuvIn = (*env)->GetPrimitiveArrayCritical(env, yuvIn_, 0);
+    jbyte *yuvOut = (*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0);
+
+    int delta = (height - outputHeight_) >> 1;
+    int org_size = width * height, crop_size = width * outputHeight_;
+    int y_M_width, y_div_2_M_width, y_minus_delta_M_width, y_minus_delta_div_2_M_width;
+    int x, y = delta;
+    for (; y < height - delta; y++) {
+        y_M_width = y * width;
+        y_div_2_M_width = y_M_width >> 1;
+        y_minus_delta_M_width = (y - delta) * width;
+        y_minus_delta_div_2_M_width = y_minus_delta_M_width >> 1;
+        x = 0;
+        for (; x < width; x++) {
+            yuvOut[y_minus_delta_M_width + width - 1 - x] = yuvIn[y_M_width + x];
+            if ((y & 0x1) == 0 && (x & 0x1) == 0) {
+                yuvOut[crop_size + y_minus_delta_div_2_M_width + width - 1 - x] = yuvIn[org_size + y_div_2_M_width + x];
+                yuvOut[crop_size + y_minus_delta_div_2_M_width + width - 1 - x + 1] = yuvIn[org_size + y_div_2_M_width + x + 1];
             }
         }
     }
@@ -292,10 +348,10 @@ JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverte
     }
     jbyte *yuvOut = (jbyte *) ((*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0));
 
-    int delta = (height - outputHeight_) / 2;
+    int delta = (height - outputHeight_) >> 1;
     int crop_size_minus_1 = outputHeight_ * width - 1;
     int i_index_div_2, i_div_4;
-    int crop_len_minus_1 = width * outputHeight_ * 3 / 2 - 1;
+    int crop_len_minus_1 = ((width * outputHeight_ * 3) >> 1) - 1;
     int i, i_start = delta * width, i_end = (height - delta) * width;
     for (i = i_start; i < i_end; i++) {
         yuvOut[crop_size_minus_1 - i + i_start] = Y[i];
@@ -323,7 +379,7 @@ JNIEXPORT jint JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConvert
     }
     jbyte *yuvOut = (jbyte *) ((*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0));
 
-    int delta = (height - outputHeight_) / 2;
+    int delta = (height - outputHeight_) >> 1;
     int crop_size = outputHeight_ * width;
     int Cr_position, i_div_4;
     int i, i_start = delta * width, i_end = (height - delta) * width;
@@ -334,6 +390,84 @@ JNIEXPORT jint JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConvert
             i_div_4 = i >> 2;
             yuvOut[crop_size + Cr_position] = Cr[i_div_4 * CrPixelStride];
             yuvOut[crop_size + Cr_position + 1] = Cb[i_div_4 * CbPixelStride];
+        }
+    }
+
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvOut_, yuvOut, 0);
+
+    return 0;
+}
+
+JNIEXPORT int JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverter_image2yuvCropRotateC180Flip(
+        JNIEnv *env, jobject obj, jint width, jint height, jobject YIn, jobject CrIn, jobject CbIn,
+        jint CrPixelStride, jint CbPixelStride, jint outputHeight_, jbyteArray yuvOut_) {
+    jbyte *Y = (jbyte *) (*env)->GetDirectBufferAddress(env, YIn);
+    jbyte *Cr = (jbyte *) (*env)->GetDirectBufferAddress(env, CrIn);
+    jbyte *Cb = (jbyte *) (*env)->GetDirectBufferAddress(env, CbIn);
+    if (Y == 0 || Cr == 0 || Cb == 0) {
+        return -1;
+    }
+    jbyte *yuvOut = (jbyte *) ((*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0));
+
+    int delta = (height - outputHeight_) >> 1;
+    int crop_size = outputHeight_ * width;
+    int Cr_out, C_in;
+    int x, y = delta, y_end = height - delta;
+    int index_in, index_out, y_M_w, y_div_2_M_w, h_minus_1_M_w, h_minus_1_div2_M_w;
+    for (; y < y_end; y++) {
+        y_M_w = y * width;
+        y_div_2_M_w = (y >> 1) * width;
+        h_minus_1_M_w = (height - 1 - y - delta) * width;
+        h_minus_1_div2_M_w = ((height - 1 - y - delta) >> 1) * width;
+        for (x = 0; x < width; x++) {
+            index_in = y_M_w + x;
+            index_out = h_minus_1_M_w + x;
+            yuvOut[index_out] = Y[index_in];
+            if ((y & 0x1) == 0 && (x & 0x1) == 0) {
+                Cr_out = h_minus_1_div2_M_w + x;
+                C_in = (y_div_2_M_w + x) >> 1;
+                yuvOut[crop_size + Cr_out] = Cr[C_in * CrPixelStride];
+                yuvOut[crop_size + Cr_out + 1] = Cb[C_in * CbPixelStride];
+            }
+        }
+    }
+
+    (*env)->ReleasePrimitiveArrayCritical(env, yuvOut_, yuvOut, 0);
+
+    return 0;
+}
+
+JNIEXPORT jint JNICALL Java_com_github_piasy_cameracompat_gpuimage_RgbYuvConverter_image2yuvCropFlip(
+        JNIEnv *env, jobject obj, jint width, jint height, jobject YIn, jobject CrIn, jobject CbIn,
+        jint CrPixelStride, jint CbPixelStride, jint outputHeight_, jbyteArray yuvOut_) {
+    jbyte *Y = (jbyte *) (*env)->GetDirectBufferAddress(env, YIn);
+    jbyte *Cr = (jbyte *) (*env)->GetDirectBufferAddress(env, CrIn);
+    jbyte *Cb = (jbyte *) (*env)->GetDirectBufferAddress(env, CbIn);
+    if (Y == 0 || Cr == 0 || Cb == 0) {
+        return -1;
+    }
+    jbyte *yuvOut = (jbyte *) ((*env)->GetPrimitiveArrayCritical(env, yuvOut_, 0));
+
+    int delta = (height - outputHeight_) >> 1;
+    int crop_size = outputHeight_ * width;
+    int Cr_out, C_in;
+    int x, y = delta, y_end = height - delta;
+    int index_in, index_out, y_M_w, y_div_2_M_w, y_minus_delta_M_w, y_minus_delta_div_2_M_w;
+    for (; y < y_end; y++) {
+        y_M_w = y * width;
+        y_div_2_M_w = (y >> 1) * width;
+        y_minus_delta_M_w = (y - delta) * width;
+        y_minus_delta_div_2_M_w = ((y - delta) >> 1) * width;
+        for (x = 0; x < width; x++) {
+            index_in = y_M_w + x;
+            index_out = y_minus_delta_M_w + width - 1 - x;
+            yuvOut[index_out] = Y[index_in];
+            if ((y & 0x1) == 0 && (x & 0x1) == 0) {
+                Cr_out = y_minus_delta_div_2_M_w + width - 1 - x;
+                C_in = (y_div_2_M_w + x) >> 1;
+                yuvOut[crop_size + Cr_out + 1] = Cr[C_in * CrPixelStride];
+                yuvOut[crop_size + Cr_out] = Cb[C_in * CbPixelStride];
+            }
         }
     }
 

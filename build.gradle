@@ -5,12 +5,13 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.0-alpha5'
+        classpath 'com.android.tools.build:gradle:2.2.1'
         classpath 'com.neenbedankt.gradle.plugins:android-apt:1.8'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.3.1'
         classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
         classpath 'me.tatarka:gradle-retrolambda:3.2.5'
         classpath 'me.tatarka.retrolambda.projectlombok:lombok.ast:0.2.3.a2'
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.0.1"
     }
     configurations.classpath.exclude group: 'com.android.tools.external.lombok'
 }
@@ -44,11 +45,16 @@ ext {
     releaseVersionCode = 1
     releaseVersionName = '1.0.0'
 
-    androidCompileSdkVersion = 23
-    androidBuildToolsVersion = '23.0.2'
-    androidSupportSdkVersion = '23.4.0'
-    gpuImageVersion = '1.4.1'
-    fragmentArgsVersion = '3.0.2'
     minSdkVersion = 15
+    androidCompileSdkVersion = 24
+    androidBuildToolsVersion = '24.0.2'
     targetSdkVersion = 22
+    androidSupportSdkVersion = '24.2.1'
+
+    fragmentArgsVersion = '3.0.2'
+    gpuImageVersion = '1.4.1'
+    rxJavaVersion = '1.0.15'
+    rxAndroidVersion = '1.0.1'
+    timberVersion = '4.1.2'
+    retroLambdaVersion = '2.3.0'
 }

@@ -27,6 +27,7 @@ package com.github.piasy.cameracompat.internal;
 import android.annotation.TargetApi;
 import android.hardware.Camera;
 import android.os.Build;
+import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.gpuimage.CameraFrameCallback;
 
 /**
@@ -42,12 +43,17 @@ class Camera1PreviewCallback implements Camera.PreviewCallback {
 
     @Override
     public void onPreviewFrame(final byte[] data, final Camera camera) {
-        Camera.Size size = camera.getParameters().getPreviewSize();
-        mCameraFrameCallback.onFrameData(data, size.width, size.height, new Runnable() {
-            @Override
-            public void run() {
-                camera.addCallbackBuffer(data);
-            }
-        });
+        try {
+            Camera.Size size = camera.getParameters().getPreviewSize();
+            mCameraFrameCallback.onFrameData(data, size.width, size.height, new Runnable() {
+                @Override
+                public void run() {
+                    camera.addCallbackBuffer(data);
+                    // errors will be caught at where this task is executed
+                }
+            });
+        } catch (RuntimeException | OutOfMemoryError e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+        }
     }
 }

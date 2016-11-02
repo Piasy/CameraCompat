@@ -26,6 +26,7 @@ package com.github.piasy.cameracompat.example;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.WorkerThread;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.TextView;
@@ -39,7 +40,8 @@ import com.vinny.vinnylive.NativeLive;
 import com.vinny.vinnylive.audio.YLLiveAudioRecorder;
 
 public class ProfilingActivity extends AppCompatActivity
-        implements CameraCompat.VideoCaptureCallback, Profiler.MetricListener {
+        implements CameraCompat.VideoCaptureCallback, Profiler.MetricListener,
+        CameraCompat.ErrorHandler {
 
     private volatile boolean mStarted;
     private YLLiveAudioRecorder mYLLiveAudioRecorder;
@@ -61,7 +63,7 @@ public class ProfilingActivity extends AppCompatActivity
     }
 
     private void start() {
-        CameraCompat cameraCompat = new CameraCompat.Builder().beautifyOn(true)
+        CameraCompat cameraCompat = new CameraCompat.Builder(this, this).beautifyOn(true)
                 .frontCamera(true)
                 .metricListener(this)
                 .build();
@@ -164,11 +166,13 @@ public class ProfilingActivity extends AppCompatActivity
         }
     }
 
+    @WorkerThread
     @Override
     public void onVideoSizeChanged(int width, int height) {
         startPublish(width, height);
     }
 
+    @WorkerThread
     @Override
     public void onFrameData(final byte[] data, final int width, final int height) {
         if (mStarted) {
@@ -191,5 +195,10 @@ public class ProfilingActivity extends AppCompatActivity
         draw+= metric.draw;
         readPixels+= metric.readPixels;
         rgba2yuv+= metric.rgba2yuv;
+    }
+
+    @WorkerThread
+    @Override
+    public void onError(@CameraCompat.ErrorCode int code) {
     }
 }

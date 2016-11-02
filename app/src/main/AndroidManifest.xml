@@ -21,8 +21,7 @@
   ~ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   ~ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   ~ SOFTWARE.
-  -->
-
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="com.github.piasy.cameracompat.example">
 
@@ -45,6 +44,10 @@
             </intent-filter>
         </activity>
         <activity android:name=".ProfilingActivity"/>
+        <activity android:name=".PublishActivity">
+        </activity>
+        <activity android:name=".WatchActivity">
+        </activity>
     </application>
 
 </manifest>

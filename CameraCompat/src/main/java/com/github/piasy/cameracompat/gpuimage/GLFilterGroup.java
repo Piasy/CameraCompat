@@ -26,7 +26,6 @@ package com.github.piasy.cameracompat.gpuimage;
 
 import android.annotation.SuppressLint;
 import android.opengl.GLES20;
-import com.github.piasy.cameracompat.CameraCompat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -37,7 +36,6 @@ import jp.co.cyberagent.android.gpuimage.Rotation;
 import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
 import static com.github.piasy.cameracompat.gpuimage.GLRender.readPixels;
-import static com.github.piasy.cameracompat.gpuimage.GLRender.rgba2yuv;
 import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE_NO_ROTATION;
 
 /**
@@ -45,27 +43,24 @@ import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE
  */
 public class GLFilterGroup extends GPUImageFilter {
 
+    private final FloatBuffer mGLCubeBuffer;
+    private final FloatBuffer mGLTextureBuffer;
+    private final FloatBuffer mGLTextureFlipBuffer;
     protected List<GPUImageFilter> mFilters;
     protected List<GPUImageFilter> mMergedFilters;
     private int[] mFrameBuffers;
     private int[] mFrameBufferTextures;
-
-    private final CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
-    private final FloatBuffer mGLCubeBuffer;
-    private final FloatBuffer mGLTextureBuffer;
-    private final FloatBuffer mGLTextureFlipBuffer;
-
-    private boolean mIsFrontCamera;
+    private ImageDumpedListener mImageDumpedListener;
+    private volatile int mImageWidth;
+    private volatile int mImageHeight;
+    private ByteBuffer mRgbaBuf;
 
     /**
      * Instantiates a new GPUImageFilterGroup with the given filters.
      *
      * @param filters the filters which represent this filter
      */
-    public GLFilterGroup(List<GPUImageFilter> filters,
-            CameraCompat.VideoCaptureCallback videoCaptureCallback, boolean isFrontCamera) {
-        mVideoCaptureCallback = videoCaptureCallback;
-        mIsFrontCamera = isFrontCamera;
+    public GLFilterGroup(List<GPUImageFilter> filters) {
         mFilters = filters;
         if (mFilters == null) {
             mFilters = new ArrayList<>();
@@ -88,6 +83,10 @@ public class GLFilterGroup extends GPUImageFilter {
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
         mGLTextureFlipBuffer.put(flipTexture).position(0);
+    }
+
+    void setImageDumpedListener(ImageDumpedListener imageDumpedListener) {
+        mImageDumpedListener = imageDumpedListener;
     }
 
     /*
@@ -113,17 +112,6 @@ public class GLFilterGroup extends GPUImageFilter {
             filter.destroy();
         }
         super.onDestroy();
-    }
-
-    private void destroyFramebuffers() {
-        if (mFrameBufferTextures != null) {
-            GLES20.glDeleteTextures(mFrameBufferTextures.length, mFrameBufferTextures, 0);
-            mFrameBufferTextures = null;
-        }
-        if (mFrameBuffers != null) {
-            GLES20.glDeleteFramebuffers(mFrameBuffers.length, mFrameBuffers, 0);
-            mFrameBuffers = null;
-        }
     }
 
     /*
@@ -175,23 +163,6 @@ public class GLFilterGroup extends GPUImageFilter {
         }
     }
 
-    public void cameraSwitched() {
-        mIsFrontCamera = !mIsFrontCamera;
-    }
-
-    private volatile int mImageWidth;
-    private volatile int mImageHeight;
-    private ByteBuffer mRgbaBuf;
-    private ByteBuffer mYuvBuf;
-
-    public void onImageSizeChanged(int imageWidth, int imageHeight) {
-        mImageWidth = imageWidth;
-        mImageHeight = imageHeight;
-        mRgbaBuf = ByteBuffer.allocateDirect(mImageWidth * mImageHeight * 4);
-        mYuvBuf = ByteBuffer.allocateDirect(mImageWidth * mImageHeight * 3 / 2);
-        onOutputSizeChanged(mOutputWidth, mOutputHeight);
-    }
-
     /*
      * (non-Javadoc)
      * @see jp.co.cyberagent.android.gpuimage.GPUImageFilter#onDraw(int,
@@ -222,7 +193,8 @@ public class GLFilterGroup extends GPUImageFilter {
             } else {
                 mOutputWidth = currentOutputWidth;
                 mOutputHeight = currentOutputHeight;
-                GLES20.glViewport(0, 0, mOutputWidth, mOutputHeight);
+                // avoid extra stride at the edge of screen
+                GLES20.glViewport(-7, -7, mOutputWidth + 14, mOutputHeight + 14);
             }
 
             if (i == 0) {
@@ -245,21 +217,33 @@ public class GLFilterGroup extends GPUImageFilter {
         }
     }
 
+    private void destroyFramebuffers() {
+        if (mFrameBufferTextures != null) {
+            GLES20.glDeleteTextures(mFrameBufferTextures.length, mFrameBufferTextures, 0);
+            mFrameBufferTextures = null;
+        }
+        if (mFrameBuffers != null) {
+            GLES20.glDeleteFramebuffers(mFrameBuffers.length, mFrameBuffers, 0);
+            mFrameBuffers = null;
+        }
+    }
+
+    public void onImageSizeChanged(int imageWidth, int imageHeight) {
+        mImageWidth = imageWidth;
+        mImageHeight = imageHeight;
+        mRgbaBuf = ByteBuffer.allocateDirect(mImageWidth * mImageHeight * 4);
+        onOutputSizeChanged(mOutputWidth, mOutputHeight);
+    }
+
     private void sendImage(int width, int height) {
-        if (mVideoCaptureCallback == null) {
+        if (mImageDumpedListener == null) {
             return;
         }
         mRgbaBuf.position(0);
         GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, mRgbaBuf);
         GLUtils.dumpGlError("glReadPixels");
         readPixels = System.nanoTime();
-        if (mIsFrontCamera) {
-            RgbYuvConverter.rgba2yuvRotateC90Flip(width, height, mRgbaBuf.array(), mYuvBuf.array());
-        } else {
-            RgbYuvConverter.rgba2yuvRotateC90(width, height, mRgbaBuf.array(), mYuvBuf.array());
-        }
-        rgba2yuv = System.nanoTime();
-        mVideoCaptureCallback.onFrameData(mYuvBuf.array(), height, width);
+        mImageDumpedListener.imageDumped(mRgbaBuf, width, height);
     }
 
     public List<GPUImageFilter> getFilters() {
@@ -292,5 +276,9 @@ public class GLFilterGroup extends GPUImageFilter {
             }
             mMergedFilters.add(filter);
         }
+    }
+
+    public interface ImageDumpedListener {
+        void imageDumped(ByteBuffer rgba, int width, int height);
     }
 }

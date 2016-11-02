@@ -30,7 +30,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
-import android.support.annotation.CallSuper;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
@@ -43,6 +42,7 @@ import com.github.piasy.cameracompat.gpuimage.GLRender;
 import com.github.piasy.cameracompat.internal.events.SwitchBeautifyEvent;
 import com.github.piasy.cameracompat.internal.events.SwitchCameraEvent;
 import com.github.piasy.cameracompat.internal.events.SwitchFlashEvent;
+import com.github.piasy.cameracompat.internal.events.SwitchMirrorEvent;
 import com.github.piasy.cameracompat.utils.Utils;
 import com.hannesdorfmann.fragmentargs.annotation.Arg;
 import java.util.Arrays;
@@ -68,21 +68,24 @@ abstract class PreviewFragment extends Fragment {
     boolean mIsDefaultFlashOpen;
     @Arg
     boolean mIsDefaultBeautifyOn;
+    @Arg
+    boolean mIsDefaultMirrorEnabled;
 
     GLSurfaceView mGLSurfaceView;
 
     GLRender mRenderer;
     private CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
     private GPUImageTwoInputFilter mTwoInputFilter;
+    private CameraHelper mCameraHelper;
+
+    public PreviewFragment() {
+        // Required empty public constructor
+    }
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        if (context instanceof CameraCompat.VideoCaptureCallback) {
-            mVideoCaptureCallback = (CameraCompat.VideoCaptureCallback) context;
-        } else if (getTargetFragment() instanceof CameraCompat.VideoCaptureCallback) {
-            mVideoCaptureCallback = (CameraCompat.VideoCaptureCallback) getTargetFragment();
-        }
+        mVideoCaptureCallback = CameraCompat.getInstance().getVideoCaptureCallback();
     }
 
     @Override
@@ -107,14 +110,18 @@ abstract class PreviewFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
-        startPreview();
+        if (mCameraHelper != null) {
+            mCameraHelper.startPreview();
+        }
     }
 
     @Override
     public void onPause() {
         super.onPause();
 
-        stopPreview();
+        if (mCameraHelper != null) {
+            mCameraHelper.stopPreview();
+        }
     }
 
     @Override
@@ -130,35 +137,28 @@ abstract class PreviewFragment extends Fragment {
         mVideoCaptureCallback = null;
     }
 
-    protected abstract void startPreview();
-
-    protected abstract void stopPreview();
-
-    protected abstract void switchCamera();
-
-    protected abstract void switchFlash();
-
-    public PreviewFragment() {
-        // Required empty public constructor
-    }
-
     private void bindView(View rootView) {
         mGLSurfaceView = (GLSurfaceView) rootView.findViewById(R.id.mSurface);
     }
 
-    @CallSuper
-    protected void initFields() {
+    private void initFields() {
         GPUImageFilter smoothFilter = new GPUImageFilter(GPUImageFilter.NO_FILTER_VERTEX_SHADER,
                 BeautifyShaders.SMOOTH_FRAGMENT_SHADER);
         mTwoInputFilter = new GPUImageTwoInputFilter(BeautifyShaders.RGB_MAP_FRAGMENT_SHADER);
-        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.map);
-        mTwoInputFilter.setBitmap(bitmap);
-        GLFilterGroup filterGroup = new GLFilterGroup(
-                Arrays.asList(smoothFilter, mTwoInputFilter, new GPUImageFilter()),
-                mVideoCaptureCallback, mIsDefaultFrontCamera);
-        mRenderer = new GLRender(filterGroup, mIsDefaultBeautifyOn, mVideoCaptureCallback,
-                mIsDefaultFrontCamera);
+        try {
+            Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.map);
+            mTwoInputFilter.setBitmap(bitmap);
+            GLFilterGroup filterGroup = new GLFilterGroup(
+                    Arrays.asList(smoothFilter, mTwoInputFilter, new GPUImageFilter()));
+            mRenderer = new GLRender(filterGroup, mIsDefaultBeautifyOn, mVideoCaptureCallback,
+                    mIsDefaultFrontCamera, mIsDefaultMirrorEnabled);
+            mCameraHelper = createCameraHelper();
+        } catch (OutOfMemoryError error) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+        }
     }
+
+    protected abstract CameraHelper createCameraHelper();
 
     private void initSurface() {
         if (Utils.isSupportOpenGLES2(getContext())) {
@@ -178,11 +178,18 @@ abstract class PreviewFragment extends Fragment {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onSwitchCamera(SwitchCameraEvent event) {
-        switchCamera();
+        mRenderer.pauseDrawing();
+        mCameraHelper.switchCamera();
+        mRenderer.cameraSwitched();
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onSwitchFlash(SwitchFlashEvent event) {
-        switchFlash();
+        mCameraHelper.switchFlash();
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onSwitchFlash(SwitchMirrorEvent event) {
+        mRenderer.switchMirror();
     }
 }

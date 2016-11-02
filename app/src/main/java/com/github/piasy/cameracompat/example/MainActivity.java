@@ -28,29 +28,31 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
-import android.widget.Toast;
 import com.github.piasy.cameracompat.CameraCompat;
-import com.vinny.vinnylive.ConnectionChangeReceiver;
-import com.vinny.vinnylive.LiveObs;
-import com.vinny.vinnylive.LiveParam;
-import com.vinny.vinnylive.NativeLive;
-import com.vinny.vinnylive.audio.YLLiveAudioRecorder;
+import com.yolo.livesdk.YoloLiveNative;
 
-public class MainActivity extends AppCompatActivity implements CameraCompat.VideoCaptureCallback {
-
-    private volatile boolean mStarted;
-    private YLLiveAudioRecorder mYLLiveAudioRecorder;
-    private CameraCompat mCameraCompat;
+public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        CameraCompat.init(getApplicationContext());
+        YoloLiveNative.init(getApplicationContext(), true);
+
         setContentView(R.layout.activity_main);
 
-        findViewById(R.id.mBtnStart).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.mBtnPublish).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                start();
+                startActivity(new Intent(MainActivity.this, PublishActivity.class));
+            }
+        });
+
+        findViewById(R.id.mBtnWatch).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, WatchActivity.class));
             }
         });
 
@@ -60,136 +62,5 @@ public class MainActivity extends AppCompatActivity implements CameraCompat.Vide
                 startActivity(new Intent(MainActivity.this, ProfilingActivity.class));
             }
         });
-
-        findViewById(R.id.mBtnSwitchBeautify).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchBeautify();
-            }
-        });
-
-        findViewById(R.id.mBtnSwitchCamera).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchCamera();
-            }
-        });
-
-        findViewById(R.id.mBtnSwitchFlash).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mCameraCompat.switchFlash();
-            }
-        });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mStarted) {
-            mYLLiveAudioRecorder.stop();
-            NativeLive.StopPublish();
-        }
-    }
-
-    private void start() {
-        mYLLiveAudioRecorder = YLLiveAudioRecorder.getInstance();
-        mCameraCompat = new CameraCompat.Builder().beautifyOn(false).frontCamera(false).build();
-        mCameraCompat.startPreview(null, getSupportFragmentManager(), R.id.mPreviewContainer);
-        NativeLive.init(this);
-        NativeLive.CreateVinnyLive();
-        NativeLive.EnableDebug(true);
-        NativeLive.AddObs();
-        findViewById(R.id.mOpContainer).setVisibility(View.VISIBLE);
-    }
-
-    private void startPublish(int videoWidth, int videoHeight) {
-        final LiveParam param = getParam(videoWidth, videoHeight);
-        param.setStream_name("55615151206af318d57996e8178cf05a");
-        String paramStr = param.getParamStr();
-        if (NativeLive.SetParam(paramStr) == 0) {
-            String url = getLivePublishUrl("55615151206af318d57996e8178cf05a",
-                    "958338d836dcc0786284089b5775e1888a020894");
-            NativeLive.StartPublish(url);
-        } else {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(MainActivity.this, "Fail", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-        LiveObs.setCallback(new LiveObs.LiveCallback() {
-            @Override
-            public void notifyEvent(int resultCode, String content) {
-                if (resultCode == LiveObs.OK_PublishConnect) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, "Start", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                    mStarted = true;
-                    mYLLiveAudioRecorder.start();
-                }
-            }
-
-            @Override
-            public void notifyVideoData(byte[] data) {
-
-            }
-
-            @Override
-            public int notifyAudioData(byte[] data, int size) {
-                return 0;
-            }
-
-            @Override
-            public void onH264Video(byte[] data, int size, int type) {
-
-            }
-        });
-    }
-
-    private static String getLivePublishUrl(String vhallStreamName, String token) {
-        return LiveParam.rtmpPublishBaseUrl + "?token=" + token + "/" + vhallStreamName;
-    }
-
-    private LiveParam getParam(int videoWidth, int videoHeight) {
-        LiveParam param = LiveParam.getParam(LiveParam.TYPE_XHDPI);
-        param.buffer_time = 2;
-        param.publish_reconnect_times = 50;
-        param.publish_timeout = 5000;
-        param.video_width = videoWidth;
-        param.video_height = videoHeight;
-        param.setDevice_type(android.os.Build.MODEL);
-
-        int netState = ConnectionChangeReceiver.ConnectionDetect(this);
-        switch (netState) {
-            case ConnectionChangeReceiver.NET_UNKNOWN:
-                param.crf = LiveParam.CRF_WIFI;
-                return param;
-            case ConnectionChangeReceiver.NET_2G3G:
-                param.crf = LiveParam.CRF_2G3G;
-                return param;
-            case ConnectionChangeReceiver.NET_WIFI:
-                param.crf = LiveParam.CRF_WIFI;
-                return param;
-            case ConnectionChangeReceiver.NET_ERROR:
-            default:
-                return param;
-        }
-    }
-
-    @Override
-    public void onVideoSizeChanged(int width, int height) {
-        startPublish(width, height);
-    }
-
-    @Override
-    public void onFrameData(final byte[] data, final int width, final int height) {
-        if (mStarted) {
-            NativeLive.PushVideoData(data, 0, System.currentTimeMillis());
-        }
     }
 }

@@ -19,7 +19,6 @@
 package com.github.piasy.cameracompat.gpuimage;
 
 import android.annotation.TargetApi;
-import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.media.Image;
 import android.opengl.GLES20;
@@ -49,23 +48,31 @@ import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE
  * and Camera2 framework.
  */
 @SuppressWarnings("unused")
-public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
-    private static final int NO_IMAGE = -1;
+public class GLRender
+        implements GLSurfaceView.Renderer, CameraFrameCallback, GLFilterGroup.ImageDumpedListener {
     static final float CUBE[] = {
             -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f,
     };
-
-    private GLFilterGroup mFilter;
-
+    private static final int NO_IMAGE = -1;
+    static long frameStart;
+    static long yuv2rgba;
+    static long preDraw;
+    static long readPixels;
+    static long rgba2yuv;
+    static long draw;
     private final Object mSurfaceChangedWaiter = new Object();
-
-    private int mGLTextureId = NO_IMAGE;
-    private SurfaceTexture mSurfaceTexture = null;
     private final FloatBuffer mGLCubeBuffer;
     private final FloatBuffer mGLTextureBuffer;
+    private final Queue<Runnable> mRunOnDraw;
+    private final Queue<Runnable> mRunOnDrawEnd;
+    private final GLFilterGroup mDesiredFilter;
+    private final GLFilterGroup mIdleFilterGroup;
+    private final CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
+    private GLFilterGroup mFilter;
+    private int mGLTextureId = NO_IMAGE;
+    private SurfaceTexture mSurfaceTexture = null;
     private ByteBuffer mGLRgbaBuffer;
     private ByteBuffer mGLYuvBuffer;
-
     /**
      * After surface created/changed, {@link #mOutputWidth} and {@link #mOutputHeight} will be
      * updated, and it's the size of the surface (view), it's also set to
@@ -73,7 +80,6 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
      */
     private int mOutputWidth;
     private int mOutputHeight;
-
     /**
      * After preview started (get data at {@link CameraFrameCallback#onFrameData(byte[], int, int,
      * Runnable)}), {@link #mImageWidth} and {@link #mImageHeight} will be updated, it's the size
@@ -81,13 +87,8 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
      */
     private int mImageWidth;
     private int mImageHeight;
-
     private int mVideoWidth;
     private int mVideoHeight;
-
-    private final Queue<Runnable> mRunOnDraw;
-    private final Queue<Runnable> mRunOnDrawEnd;
-
     /**
      * Used to adjust preview image size into the surface view size. so we only need to choose the
      * best match size from camera supported size, the render will handle the adjust for us.
@@ -96,28 +97,29 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
     private boolean mFlipHorizontal;
     private boolean mFlipVertical;
     private GPUImage.ScaleType mScaleType = GPUImage.ScaleType.CENTER_CROP;
-
     private float mBackgroundRed = 0;
     private float mBackgroundGreen = 0;
     private float mBackgroundBlue = 0;
-
-    private final GLFilterGroup mDesiredFilter;
-    private final GLFilterGroup mIdleFilterGroup;
-    private volatile boolean mEnableFilter;
-    private final CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
-
+    // only accessed in draw thread
+    private boolean mEnableFilter;
+    private boolean mEnableMirror;
     private boolean mIsPaused = false;
     private boolean mIsDrawing = true;
-
+    private volatile boolean mIsFrontCamera;
+    // profiling field
+    private Profiler mProfiler;
     public GLRender(final GLFilterGroup filter, boolean enableFilter,
-            CameraCompat.VideoCaptureCallback videoCaptureCallback, boolean isFrontCamera) {
+            CameraCompat.VideoCaptureCallback videoCaptureCallback, boolean isFrontCamera,
+            boolean enableMirror) {
         mProfiler = CameraCompat.getInstance().getProfiler();
-        mIdleFilterGroup = new GLFilterGroup(Collections.singletonList(new GPUImageFilter()),
-                videoCaptureCallback, isFrontCamera);
+        mIdleFilterGroup = new GLFilterGroup(Collections.singletonList(new GPUImageFilter()));
         mVideoCaptureCallback = videoCaptureCallback;
         mDesiredFilter = filter;
+        mDesiredFilter.setImageDumpedListener(this);
         mEnableFilter = enableFilter;
         mFilter = enableFilter ? mDesiredFilter : mIdleFilterGroup;
+        mIsFrontCamera = isFrontCamera;
+        mEnableMirror = enableMirror;
         mRunOnDraw = new LinkedList<>();
         mRunOnDrawEnd = new LinkedList<>();
 
@@ -151,35 +153,32 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
         }
     }
 
-    // profiling field
-    private Profiler mProfiler;
-    static long frameStart;
-    static long yuv2rgba;
-    static long preDraw;
-    static long readPixels;
-    static long rgba2yuv;
-    static long draw;
-
     @Override
     public void onDrawFrame(final GL10 gl) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
-        frameStart = System.nanoTime();
-        runAll(mRunOnDraw);
-        preDraw = System.nanoTime();
-        if (!isResumed()) {
-            return;
-        }
-        mFilter.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
-        draw = System.nanoTime();
-        runAll(mRunOnDrawEnd);
-        if (mSurfaceTexture != null) {
-            mSurfaceTexture.updateTexImage();
-        }
-        if (mProfiler != null) {
-            mProfiler.metric((preDraw - frameStart) / 1_000_000,
-                    (yuv2rgba - frameStart) / 1_000_000, (draw - preDraw) / 1_000_000,
-                    (readPixels - preDraw) / 1_000_000, (rgba2yuv - readPixels) / 1_000_000);
+        try {
+            frameStart = System.nanoTime();
+            runAll(mRunOnDraw);
+            preDraw = System.nanoTime();
+            if (!isResumed()) {
+                return;
+            }
+            mFilter.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
+            draw = System.nanoTime();
+            runAll(mRunOnDrawEnd);
+            if (mSurfaceTexture != null) {
+                mSurfaceTexture.updateTexImage();
+            }
+            if (mProfiler != null) {
+                mProfiler.metric((preDraw - frameStart) / 1_000_000,
+                        (yuv2rgba - frameStart) / 1_000_000, (draw - preDraw) / 1_000_000,
+                        (readPixels - preDraw) / 1_000_000, (rgba2yuv - readPixels) / 1_000_000);
+            }
+        } catch (RuntimeException | OutOfMemoryError error) {
+            // throw from: runAll(mRunOnDraw) -> mFilter.onImageSizeChanged -> ByteBuffer
+            // .allocateDirect
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
     }
 
@@ -223,6 +222,15 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
         });
     }
 
+    public void switchMirror() {
+        runOnDraw(new Runnable() {
+            @Override
+            public void run() {
+                mEnableMirror = !mEnableMirror;
+            }
+        });
+    }
+
     public synchronized void pauseDrawing() {
         mIsPaused = true;
         mIsDrawing = false;
@@ -244,8 +252,8 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
         return mIsDrawing;
     }
 
-    public void cameraSwitched() {
-        mFilter.cameraSwitched();
+    public synchronized void cameraSwitched() {
+        mIsFrontCamera = !mIsFrontCamera;
     }
 
     @Override
@@ -278,15 +286,7 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
                         adjustImageScaling();
                     }
                     if (!mEnableFilter) {
-                        if (mRotation == Rotation.ROTATION_90) {
-                            RgbYuvConverter.yuvCropRotateC180(width, height, data, mVideoHeight,
-                                    mGLYuvBuffer.array());
-                        } else {
-                            RgbYuvConverter.yuvCrop(width, height, data, mVideoHeight,
-                                    mGLYuvBuffer.array());
-                        }
-                        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), width,
-                                mVideoHeight);
+                        sendNormalImage(width, height, data);
                     }
                     RgbYuvConverter.yuv2rgba(width, height, data, mGLRgbaBuffer.array());
                     yuv2rgba = System.nanoTime();
@@ -305,9 +305,8 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @Override
     public void onFrameData(final Image image, final Runnable postProcessedTask) {
-        Rect crop = image.getCropRect();
-        final int width = crop.width();
-        final int height = crop.height();
+        final int width = image.getWidth();
+        final int height = image.getHeight();
         if (mGLRgbaBuffer == null) {
             mGLRgbaBuffer = ByteBuffer.allocateDirect(width * height * 4);
         }
@@ -335,15 +334,7 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
                         adjustImageScaling();
                     }
                     if (!mEnableFilter) {
-                        if (mRotation == Rotation.ROTATION_90) {
-                            RgbYuvConverter.image2yuvCropRotateC180(image, mVideoHeight,
-                                    mGLYuvBuffer.array());
-                        } else {
-                            RgbYuvConverter.image2yuvCrop(image, mVideoHeight,
-                                    mGLYuvBuffer.array());
-                        }
-                        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), width,
-                                mVideoHeight);
+                        sendNormalImage(image);
                     }
                     RgbYuvConverter.image2rgba(image, mGLRgbaBuffer.array());
                     yuv2rgba = System.nanoTime();
@@ -359,6 +350,66 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
         } else {
             postProcessedTask.run();
         }
+    }
+
+    @Override
+    public void imageDumped(ByteBuffer rgba, int width, int height) {
+        sendBeautifyImage(rgba, width, height);
+    }
+
+    private void sendNormalImage(int width, int height, byte[] data) {
+        if (mIsFrontCamera && mEnableMirror) {
+            if (mRotation == Rotation.ROTATION_90) {
+                RgbYuvConverter.yuvCropFlip(width, height, data, mVideoHeight,
+                        mGLYuvBuffer.array());
+            } else {
+                RgbYuvConverter.yuvCropRotateC180Flip(width, height, data, mVideoHeight,
+                        mGLYuvBuffer.array());
+            }
+        } else {
+            if (mRotation == Rotation.ROTATION_90) {
+                RgbYuvConverter.yuvCropRotateC180(width, height, data, mVideoHeight,
+                        mGLYuvBuffer.array());
+            } else {
+                RgbYuvConverter.yuvCrop(width, height, data, mVideoHeight, mGLYuvBuffer.array());
+            }
+        }
+        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), width, mVideoHeight);
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void sendNormalImage(Image image) {
+        if (mIsFrontCamera && mEnableMirror) {
+            if (mRotation == Rotation.ROTATION_90) {
+                RgbYuvConverter.image2yuvCropFlip(image, mVideoHeight, mGLYuvBuffer.array());
+            } else {
+                RgbYuvConverter.image2yuvCropRotateC180Flip(image, mVideoHeight,
+                        mGLYuvBuffer.array());
+            }
+        } else {
+            if (mRotation == Rotation.ROTATION_90) {
+                RgbYuvConverter.image2yuvCropRotateC180(image, mVideoHeight, mGLYuvBuffer.array());
+            } else {
+                RgbYuvConverter.image2yuvCrop(image, mVideoHeight, mGLYuvBuffer.array());
+            }
+        }
+        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), image.getWidth(), mVideoHeight);
+    }
+
+    private void sendBeautifyImage(ByteBuffer rgba, int width, int height) {
+        if (mIsFrontCamera) {
+            if (mEnableMirror) {
+                RgbYuvConverter.rgba2yuvRotateC90(width, height, rgba.array(),
+                        mGLYuvBuffer.array());
+            } else {
+                RgbYuvConverter.rgba2yuvRotateC90Flip(width, height, rgba.array(),
+                        mGLYuvBuffer.array());
+            }
+        } else {
+            RgbYuvConverter.rgba2yuvRotateC90(width, height, rgba.array(), mGLYuvBuffer.array());
+        }
+        rgba2yuv = System.nanoTime();
+        mVideoCaptureCallback.onFrameData(mGLYuvBuffer.array(), height, width);
     }
 
     public void setUpSurfaceTexture(final SurfaceTextureInitCallback callback) {
@@ -441,11 +492,6 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
         setRotation(rotation, flipVertical, flipHorizontal);
     }
 
-    public void setRotation(final Rotation rotation) {
-        mRotation = rotation;
-        adjustImageScaling();
-    }
-
     public void setRotation(final Rotation rotation, final boolean flipHorizontal,
             final boolean flipVertical) {
         mFlipHorizontal = flipHorizontal;
@@ -455,6 +501,11 @@ public class GLRender implements GLSurfaceView.Renderer, CameraFrameCallback {
 
     public Rotation getRotation() {
         return mRotation;
+    }
+
+    public void setRotation(final Rotation rotation) {
+        mRotation = rotation;
+        adjustImageScaling();
     }
 
     public boolean isFlippedHorizontally() {

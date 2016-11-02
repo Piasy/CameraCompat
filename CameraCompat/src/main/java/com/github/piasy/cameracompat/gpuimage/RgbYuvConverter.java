@@ -25,8 +25,10 @@
 package com.github.piasy.cameracompat.gpuimage;
 
 import android.annotation.TargetApi;
+import android.content.Context;
 import android.media.Image;
 import android.os.Build;
+import com.getkeepsafe.relinker.ReLinker;
 import java.nio.ByteBuffer;
 
 /**
@@ -93,8 +95,8 @@ import java.nio.ByteBuffer;
  */
 public class RgbYuvConverter {
 
-    static {
-        System.loadLibrary("rgb-yuv-converter-library");
+    public static void loadLibrary(Context context) {
+        ReLinker.loadLibrary(context, "rgb-yuv-converter-library");
     }
 
     public static native int yuv2rgba(int width, int height, byte[] yuvIn, byte[] rgbaOut);
@@ -134,6 +136,12 @@ public class RgbYuvConverter {
     public static native int yuvCrop(int width, int height, byte[] yuvIn,
             int outputHeight, byte[] yuvOut);
 
+    public static native int yuvCropRotateC180Flip(int width, int height, byte[] yuvIn,
+            int outputHeight, byte[] yuvOut);
+
+    public static native int yuvCropFlip(int width, int height, byte[] yuvIn,
+            int outputHeight, byte[] yuvOut);
+
     /**
      * rotate 180 degree in counter clockwise and change to yuv
      */
@@ -161,10 +169,41 @@ public class RgbYuvConverter {
                 CbPixelStride, outputHeight, yuvOut);
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    public static int image2yuvCropRotateC180Flip(Image imageIn, int outputHeight, byte[] yuvOut) {
+        Image.Plane[] planes = imageIn.getPlanes();
+        ByteBuffer Y = planes[0].getBuffer();
+        ByteBuffer Cr = planes[2].getBuffer();
+        int CrPixelStride = planes[2].getPixelStride();
+        ByteBuffer Cb = planes[1].getBuffer();
+        int CbPixelStride = planes[1].getPixelStride();
+        return image2yuvCropRotateC180Flip(imageIn.getWidth(), imageIn.getHeight(), Y, Cr, Cb,
+                CrPixelStride, CbPixelStride, outputHeight, yuvOut);
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    public static int image2yuvCropFlip(Image imageIn, int outputHeight, byte[] yuvOut) {
+        Image.Plane[] planes = imageIn.getPlanes();
+        ByteBuffer Y = planes[0].getBuffer();
+        ByteBuffer Cr = planes[2].getBuffer();
+        int CrPixelStride = planes[2].getPixelStride();
+        ByteBuffer Cb = planes[1].getBuffer();
+        int CbPixelStride = planes[1].getPixelStride();
+        return image2yuvCropFlip(imageIn.getWidth(), imageIn.getHeight(), Y, Cr, Cb, CrPixelStride,
+                CbPixelStride, outputHeight, yuvOut);
+    }
+
     private static native int image2yuvCropRotateC180(int width, int height, ByteBuffer Y,
             ByteBuffer Cr, ByteBuffer Cb, int CrPixelStride, int CbPixelStride, int outputWidth,
             byte[] yuvOut);
 
     private static native int image2yuvCrop(int width, int height, ByteBuffer Y, ByteBuffer Cr,
+            ByteBuffer Cb, int CrPixelStride, int CbPixelStride, int outputWidth, byte[] yuvOut);
+
+    private static native int image2yuvCropRotateC180Flip(int width, int height, ByteBuffer Y,
+            ByteBuffer Cr, ByteBuffer Cb, int CrPixelStride, int CbPixelStride, int outputWidth,
+            byte[] yuvOut);
+
+    private static native int image2yuvCropFlip(int width, int height, ByteBuffer Y, ByteBuffer Cr,
             ByteBuffer Cb, int CrPixelStride, int CbPixelStride, int outputWidth, byte[] yuvOut);
 }

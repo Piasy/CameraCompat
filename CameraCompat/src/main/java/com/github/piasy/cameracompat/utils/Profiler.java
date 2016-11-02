@@ -29,8 +29,21 @@ package com.github.piasy.cameracompat.utils;
  */
 
 public class Profiler {
+    private final MetricListener mMetricListener;
+
     public Profiler(MetricListener metricListener) {
         mMetricListener = metricListener;
+    }
+
+    public void metric(long preDraw, long yuv2rgba, long draw, long readPixels, long rgba2yuv) {
+        if (preDraw <= 0 || yuv2rgba <= 0 || draw <= 0 || readPixels <= 0 || rgba2yuv <= 0) {
+            return;
+        }
+        mMetricListener.onMetric(new Metric(preDraw, yuv2rgba, draw, readPixels, rgba2yuv));
+    }
+
+    public interface MetricListener {
+        void onMetric(Metric metric);
     }
 
     public static class Metric {
@@ -47,18 +60,5 @@ public class Profiler {
             this.readPixels = readPixels;
             this.rgba2yuv = rgba2yuv;
         }
-    }
-
-    public interface MetricListener {
-        void onMetric(Metric metric);
-    }
-
-    private final MetricListener mMetricListener;
-
-    public void metric(long preDraw, long yuv2rgba, long draw, long readPixels, long rgba2yuv) {
-        if (preDraw <= 0 || yuv2rgba <= 0 || draw <= 0 || readPixels <= 0 || rgba2yuv <= 0) {
-            return;
-        }
-        mMetricListener.onMetric(new Metric(preDraw, yuv2rgba, draw, readPixels, rgba2yuv));
     }
 }

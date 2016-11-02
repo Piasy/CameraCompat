@@ -25,37 +25,26 @@
 package com.github.piasy.cameracompat.internal;
 
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.hardware.Camera;
 import android.os.Build;
-import android.view.Surface;
+import com.github.piasy.cameracompat.CameraCompat;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
-class Camera1Helper {
+class Camera1Helper extends CameraHelper {
 
-    private final int mPreviewWidth;
-    private final int mPreviewHeight;
-
-    interface CameraController {
-        void onOpened(final Camera camera, final Rotation rotation, final boolean flipHorizontal,
-                final boolean flipVertical);
-    }
-
-    private boolean mIsFront;
-    private boolean mFlashLightOn;
     private final CameraController mCameraController;
+    private final Camera1PreviewCallback mPreviewCallback;
     private Camera mCamera;
-
-    Camera1Helper(int previewWidth, int previewHeight, CameraController cameraController,
-            boolean isFront) {
-        mIsFront = isFront;
-        mPreviewWidth = previewWidth;
-        mPreviewHeight = previewHeight;
+    Camera1Helper(int previewWidth, int previewHeight, int activityRotation, boolean isFront,
+            CameraController cameraController, Camera1PreviewCallback previewCallback) {
+        super(previewWidth, previewHeight, activityRotation, isFront);
         mCameraController = cameraController;
+        mPreviewCallback = previewCallback;
     }
 
-    boolean startPreview(final Activity activity) {
+    @Override
+    protected boolean startPreview() {
         try {
             mCamera = openCamera();
             Camera.Parameters parameters = mCamera.getParameters();
@@ -67,52 +56,54 @@ class Camera1Helper {
             }
             parameters.setPreviewSize(mPreviewWidth, mPreviewHeight);
             mCamera.setParameters(parameters);
-            mCameraController.onOpened(mCamera, getRotation(activity, getCurrentCameraId()),
-                    mIsFront, false);
-        } catch (Exception e) {
-            e.printStackTrace();
+            mCamera.setPreviewCallback(mPreviewCallback);
+            mCameraController.onOpened(mCamera, getRotation(), mIsFront, false);
+        } catch (RuntimeException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
             return false;
         }
         return true;
     }
 
-    boolean stopPreview() {
-        if (mCamera != null) {
+    @Override
+    protected boolean stopPreview() {
+        if (mCamera == null) {
+            return true;
+        }
+        try {
             mCamera.stopPreview();
             mCamera.setPreviewCallback(null);
             mCamera.release();
             mCamera = null;
+        } catch (RuntimeException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+            return false;
         }
         return true;
     }
 
-    boolean switchCamera(final Activity activity) {
-        if (!stopPreview()) {
-            return false;
-        }
-        mIsFront = !mIsFront;
-        return startPreview(activity);
+    @Override
+    protected int getSensorDegree() {
+        return getCameraInfo(getCurrentCameraId()).orientation;
     }
 
-    boolean switchFlash() {
-        if (mIsFront) {
-            return false;
-        }
-        mFlashLightOn = !mFlashLightOn;
-        if (mFlashLightOn) {
-            if (mCamera != null) {
-                Camera.Parameters parameters = mCamera.getParameters();
-                parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-                mCamera.setParameters(parameters);
-            }
-        } else {
-            if (mCamera != null) {
-                Camera.Parameters parameters = mCamera.getParameters();
-                parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
-                mCamera.setParameters(parameters);
-            }
-        }
-        return true;
+    @Override
+    protected boolean canOperateFlash() {
+        return mCamera != null;
+    }
+
+    @Override
+    protected void doOpenFlash() throws RuntimeException {
+        Camera.Parameters parameters = mCamera.getParameters();
+        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+        mCamera.setParameters(parameters);
+    }
+
+    @Override
+    protected void doCloseFlash() throws RuntimeException {
+        Camera.Parameters parameters = mCamera.getParameters();
+        parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+        mCamera.setParameters(parameters);
     }
 
     private Camera openCamera() {
@@ -125,53 +116,14 @@ class Camera1Helper {
                 : Camera.CameraInfo.CAMERA_FACING_BACK;
     }
 
-    private Rotation getRotation(final Activity activity, final int cameraId) {
-        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        int activityDegree = 0;
-        switch (rotation) {
-            case Surface.ROTATION_0:
-                activityDegree = 0;
-                break;
-            case Surface.ROTATION_90:
-                activityDegree = 90;
-                break;
-            case Surface.ROTATION_180:
-                activityDegree = 180;
-                break;
-            case Surface.ROTATION_270:
-                activityDegree = 270;
-                break;
-        }
-
-        int degree;
-        Camera.CameraInfo info = getCameraInfo(cameraId);
-        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-            degree = (info.orientation + activityDegree) % 360;
-        } else {
-            degree = (info.orientation - activityDegree + 360) % 360;
-        }
-        Rotation result;
-        switch (degree) {
-            case 90:
-                result = Rotation.ROTATION_90;
-                break;
-            case 180:
-                result = Rotation.ROTATION_180;
-                break;
-            case 270:
-                result = Rotation.ROTATION_270;
-                break;
-            case 0:
-            default:
-                result = Rotation.NORMAL;
-                break;
-        }
-        return result;
-    }
-
     private Camera.CameraInfo getCameraInfo(final int cameraId) {
         Camera.CameraInfo info = new Camera.CameraInfo();
         Camera.getCameraInfo(cameraId, info);
         return info;
+    }
+
+    interface CameraController {
+        void onOpened(final Camera camera, final Rotation rotation, final boolean flipHorizontal,
+                final boolean flipVertical);
     }
 }

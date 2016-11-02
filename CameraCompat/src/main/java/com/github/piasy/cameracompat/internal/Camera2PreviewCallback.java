@@ -28,6 +28,7 @@ import android.annotation.TargetApi;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Build;
+import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.gpuimage.CameraFrameCallback;
 
 /**
@@ -43,14 +44,18 @@ class Camera2PreviewCallback implements ImageReader.OnImageAvailableListener {
 
     @Override
     public void onImageAvailable(ImageReader reader) {
-        final Image image = reader.acquireLatestImage();
-        if (image != null) {
-            mCameraFrameCallback.onFrameData(image, new Runnable() {
-                @Override
-                public void run() {
-                    image.close();
-                }
-            });
+        try {
+            final Image image = reader.acquireLatestImage();
+            if (image != null) {
+                mCameraFrameCallback.onFrameData(image, new Runnable() {
+                    @Override
+                    public void run() {
+                        image.close();
+                    }
+                });
+            }
+        } catch (OutOfMemoryError | IllegalStateException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
         }
     }
 }
