@@ -49,10 +49,10 @@ ext {
     releaseVersionName = '1.1.7'
 
     minSdkVersion = 15
-    androidCompileSdkVersion = 24
-    androidBuildToolsVersion = '24.0.2'
+    androidCompileSdkVersion = 25
+    androidBuildToolsVersion = '25.0.0'
     targetSdkVersion = 22
-    androidSupportSdkVersion = '24.2.1'
+    androidSupportSdkVersion = '25.0.0'
 
     fragmentArgsVersion = '3.0.2'
     gpuImageVersion = '1.4.1'

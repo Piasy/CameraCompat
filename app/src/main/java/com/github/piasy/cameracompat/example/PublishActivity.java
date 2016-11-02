@@ -37,6 +37,7 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import com.github.piasy.cameracompat.CameraCompat;
+import com.github.piasy.cameracompat.processor.basic.BasicBeautifyProcessor;
 import com.yatatsu.autobundle.AutoBundle;
 import com.yatatsu.autobundle.AutoBundleField;
 
@@ -141,6 +142,9 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
         CameraCompat.Builder builder = new CameraCompat.Builder(this, this)
                 .beautifyOn(false)
                 .frontCamera(false);
+        if (mBeautifyCapable) {
+            builder.addProcessor(new BasicBeautifyProcessor());
+        }
         mCameraCompat = builder.build();
         mCameraCompat.startPreview(null, getSupportFragmentManager(), R.id.mPreviewContainer);
     }
