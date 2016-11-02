@@ -44,13 +44,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".ProfilingActivity"/>
-        <activity android:name=".PublishActivity">
-        </activity>
-        <activity android:name=".WatchActivity">
-        </activity>
-        <activity
-                android:name=".QrScanActivity">
-        </activity>
+        <activity android:name=".PublishActivity"/>
+        <activity android:name=".WatchActivity"/>
+        <activity android:name=".QrScanActivity"/>
     </application>
 
 </manifest>

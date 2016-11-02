@@ -197,7 +197,8 @@ class Camera2Helper extends CameraHelper {
         if (!flashSupported) {
             return;
         }
-        mCameraController.onSettingsChanged(mCameraDevice, mOutputTargets, isOpen, mCamera2Handler);
+        mCameraController.onSettingsChanged(mCameraDevice, mCaptureSession, mOutputTargets, isOpen,
+                mCamera2Handler);
     }
 
     private void initCameraIds() throws CameraAccessException {
@@ -240,7 +241,8 @@ class Camera2Helper extends CameraHelper {
                 final Handler cameraHandler, final Rotation rotation, final boolean flipHorizontal,
                 final boolean flipVertical);
 
-        void onSettingsChanged(final CameraDevice cameraDevice, final List<Surface> targets,
+        void onSettingsChanged(final CameraDevice cameraDevice,
+                final CameraCaptureSession captureSession, final List<Surface> targets,
                 final boolean isFlashOn, final Handler cameraHandler);
     }
 }

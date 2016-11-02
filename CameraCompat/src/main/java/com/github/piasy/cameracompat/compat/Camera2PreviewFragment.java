@@ -108,16 +108,14 @@ public class Camera2PreviewFragment extends PreviewFragment
                                 isFlashOn ? CameraMetadata.FLASH_MODE_TORCH
                                         : CameraMetadata.FLASH_MODE_OFF);
 
-                        try {
-                            cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(),
-                                    null, cameraHandler);
-                            mCamera2Helper.previewSessionStarted(cameraCaptureSession);
-                            mProcessorChain.resume();
-                        } catch (IllegalStateException e) {
-                            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
-                        }
+                        cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(),
+                                null, cameraHandler);
+                        mCamera2Helper.previewSessionStarted(cameraCaptureSession);
+                        mProcessorChain.resume();
                     } catch (CameraAccessException | SecurityException e) {
                         CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+                    } catch (IllegalStateException e) {
+                        CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
                     }
                 }
 
@@ -152,8 +150,24 @@ public class Camera2PreviewFragment extends PreviewFragment
     }
 
     @Override
-    public void onSettingsChanged(final CameraDevice cameraDevice, final List<Surface> targets,
+    public void onSettingsChanged(final CameraDevice cameraDevice,
+            final CameraCaptureSession captureSession, final List<Surface> targets,
             final boolean isFlashOn, final Handler cameraHandler) {
-        startPreviewDirectly(cameraDevice, targets, isFlashOn, cameraHandler);
+        try {
+            final CaptureRequest.Builder captureRequestBuilder =
+                    cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            for (int i = 0, size = targets.size(); i < size; i++) {
+                captureRequestBuilder.addTarget(targets.get(i));
+            }
+            captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+            captureRequestBuilder.set(CaptureRequest.FLASH_MODE,
+                    isFlashOn ? CameraMetadata.FLASH_MODE_TORCH : CameraMetadata.FLASH_MODE_OFF);
+            captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, cameraHandler);
+        } catch (CameraAccessException | SecurityException e) {
+            CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+        } catch (IllegalStateException e) {
+            CameraCompat.onError(CameraCompat.ERR_UNKNOWN);
+        }
     }
 }
