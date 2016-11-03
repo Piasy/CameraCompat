@@ -5,8 +5,6 @@
 .DS_Store
 **/build
 /captures
-/test
 
-/BeautifyProcessor
 /CameraCompat/.externalNativeBuild
 /bintray.properties
