@@ -148,6 +148,7 @@ abstract class PreviewFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        CameraCompat.reset();
     }
 
     @Override

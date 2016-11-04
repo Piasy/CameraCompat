@@ -39,6 +39,8 @@ dependencies {
     apt "com.github.yatatsu:autobundle-processor:$rootProject.ext.autoBundleVersion"
     compile 'com.afollestad.material-dialogs:core:0.9.0.2'
 
+    compile 'com.squareup.leakcanary:leakcanary-android:1.5'
+
     compile project(':CameraCompat')
     compile project(':BasicBeautifyProcessor')
     compile project(':RxQrCode')

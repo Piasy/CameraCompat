@@ -101,6 +101,10 @@ public final class CameraCompat {
         RgbYuvConverter.loadLibrary(context);
     }
 
+    public static void reset() {
+        sCameraCompat = null;
+    }
+
     public static CameraCompat getInstance() {
         if (sCameraCompat == null) {
             throw new IllegalStateException("CameraCompat is not initialized!");

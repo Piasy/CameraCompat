@@ -24,7 +24,4 @@ public void onCreate(Bundle savedInstanceState) {
 ## Todo
 
 - [ ] focus
-- [ ] 华为P8存在色调偏蓝
-- [ ] N6 不美颜时锐化非常严重
-- [ ] 滤镜开关切换时仍稍有瑕疵，疑为手动裁剪和GPU裁剪方式不同导致
-- [ ] 开启滤镜时，图像边缘异常
+- [ ] use libyuv rather than self writen converter
