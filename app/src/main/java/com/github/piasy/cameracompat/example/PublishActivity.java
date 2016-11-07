@@ -73,6 +73,12 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
         start();
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        CameraCompat.reset();
+    }
+
     @OnClick(R2.id.mBtnSwitchBeautify)
     public void switchBeautify() {
         mCameraCompat.switchBeautify();

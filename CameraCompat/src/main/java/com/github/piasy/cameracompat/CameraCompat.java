@@ -101,6 +101,10 @@ public final class CameraCompat {
         RgbYuvConverter.loadLibrary(context);
     }
 
+    /**
+     * can't be called from {@link com.github.piasy.cameracompat.compat.PreviewFragment},
+     * otherwise recreate will have race condition
+     */
     public static void reset() {
         sCameraCompat = null;
     }

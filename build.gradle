@@ -12,7 +12,6 @@ buildscript {
         classpath 'com.jakewharton:butterknife-gradle-plugin:8.4.0'
         classpath 'me.tatarka.retrolambda.projectlombok:lombok.ast:0.2.3.a2'
 
-        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.0.1"
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.1'
         classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
     }
@@ -45,8 +44,8 @@ ext {
     artifactName = 'CameraCompat'
     artifactDescription = 'Create a camera preview app with beautify and camera api compatibility!'
     artifactLabels = ['Camera', 'Preview', 'GPUImage', 'Beautify', 'Compat']
-    releaseVersionCode = 9
-    releaseVersionName = '1.2.1'
+    releaseVersionCode = 10
+    releaseVersionName = '1.2.2'
 
     minSdkVersion = 15
     androidCompileSdkVersion = 25
