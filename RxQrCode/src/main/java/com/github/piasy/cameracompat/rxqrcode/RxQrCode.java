@@ -24,10 +24,12 @@
 
 package com.github.piasy.cameracompat.rxqrcode;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.IdRes;
 import android.support.annotation.Nullable;
 import android.support.v4.app.FragmentManager;
@@ -45,6 +47,9 @@ import com.google.zxing.Result;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.common.HybridBinarizer;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import rx.Emitter;
 import rx.Observable;
@@ -77,6 +82,11 @@ public final class RxQrCode {
                 .flatMap(source -> resolve(source, true));
     }
 
+    /**
+     * @Deprecated use {@link #generateQrCodeFile(Context, String, int, int)} to avoid bitmap
+     * management.
+     */
+    @Deprecated
     public static Observable<Bitmap> generateQrCode(String content, int width, int height) {
         return Observable.fromEmitter(emitter -> {
             MultiFormatWriter writer = new MultiFormatWriter();
@@ -95,6 +105,52 @@ public final class RxQrCode {
                 emitter.onCompleted();
             } catch (WriterException e) {
                 emitter.onError(e);
+            }
+        }, Emitter.BackpressureMode.BUFFER);
+    }
+
+    public static Observable<File> generateQrCodeFile(Context context, String content, int width,
+            int height) {
+        return Observable.fromEmitter(emitter -> {
+            MultiFormatWriter writer = new MultiFormatWriter();
+            Bitmap origin = null;
+            Bitmap scaled = null;
+            try {
+                BitMatrix bm = writer.encode(content, BarcodeFormat.QR_CODE, QR_CODE_LENGTH,
+                        QR_CODE_LENGTH, Collections.singletonMap(EncodeHintType.MARGIN, 0));
+                origin = Bitmap.createBitmap(QR_CODE_LENGTH, QR_CODE_LENGTH,
+                        Bitmap.Config.ARGB_8888);
+
+                for (int i = 0; i < QR_CODE_LENGTH; i++) {
+                    for (int j = 0; j < QR_CODE_LENGTH; j++) {
+                        origin.setPixel(i, j, bm.get(i, j) ? Color.BLACK : Color.WHITE);
+                    }
+                }
+                scaled = Bitmap.createScaledBitmap(origin, width, height, true);
+                File dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+                if (dir == null) {
+                    emitter.onError(new IllegalStateException("external file system unavailable!"));
+                    return;
+                }
+                String fileName = "rx_qr_" + System.currentTimeMillis() + ".png";
+                File localFile = new File(dir, fileName);
+
+                FileOutputStream outputStream = new FileOutputStream(localFile);
+                scaled.compress(Bitmap.CompressFormat.PNG, 85, outputStream);
+                outputStream.flush();
+                outputStream.close();
+
+                emitter.onNext(localFile);
+                emitter.onCompleted();
+            } catch (WriterException | IOException e) {
+                emitter.onError(e);
+            } finally {
+                if (origin != null) {
+                    origin.recycle();
+                }
+                if (scaled != null) {
+                    scaled.recycle();
+                }
             }
         }, Emitter.BackpressureMode.BUFFER);
     }

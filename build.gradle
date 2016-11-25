@@ -44,13 +44,13 @@ ext {
     artifactName = 'CameraCompat'
     artifactDescription = 'Create a camera preview app with beautify and camera api compatibility!'
     artifactLabels = ['Camera', 'Preview', 'GPUImage', 'Beautify', 'Compat']
-    releaseVersionCode = 10
-    releaseVersionName = '1.2.2'
+    releaseVersionCode = 11
+    releaseVersionName = '1.2.3'
 
     minSdkVersion = 15
-    androidCompileSdkVersion = 25
+    androidCompileSdkVersion = 24
     androidBuildToolsVersion = '25.0.0'
-    targetSdkVersion = 22
+    targetSdkVersion = 24
     androidSupportSdkVersion = '25.0.0'
 
     fragmentArgsVersion = '3.0.2'
