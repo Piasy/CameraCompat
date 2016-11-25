@@ -26,6 +26,7 @@ package com.github.piasy.cameracompat.example;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import com.github.piasy.cameracompat.CameraCompat;
 
 public class QrScanActivity extends AppCompatActivity {
 
@@ -35,5 +36,11 @@ public class QrScanActivity extends AppCompatActivity {
         getSupportFragmentManager().beginTransaction()
                 .add(android.R.id.content, new QrScanFragment())
                 .commit();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        CameraCompat.reset();
     }
 }

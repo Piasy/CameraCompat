@@ -95,9 +95,7 @@ public final class RxQrCode {
                     QR_CODE_IN_SAMPLE_LENGTH);
 
             options.inJustDecodeBounds = false;
-            int[] pixels = new int[options.outWidth * options.outHeight
-                                   / options.inSampleSize
-                                   / options.inSampleSize];
+            int[] pixels = null;
 
             QRCodeReader reader = new QRCodeReader();
             int retryTimes = 0;
@@ -106,6 +104,9 @@ public final class RxQrCode {
                 Bitmap picture = BitmapFactory.decodeFile(path, options);
                 int width = picture.getWidth();
                 int height = picture.getHeight();
+                if (pixels == null) {
+                    pixels = new int[picture.getWidth() * picture.getHeight()];
+                }
                 picture.getPixels(pixels, 0, width, 0, 0, width, height);
                 picture.recycle();
                 LuminanceSource source = new RGBLuminanceSource(width, height, pixels);

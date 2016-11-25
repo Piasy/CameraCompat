@@ -10,14 +10,14 @@ import com.github.guikunzhi.beautify.BasicBeautifyShaders;
 
 public class BasicBeautyFilter extends GPUImageTwoPassTextureSamplingFilter {
 
-    private float distanceNormalizationFactor = 1f;
-    private float texelSpacingMultiplier = 1f;
+    private float mDistanceNormalizationFactor = 1f;
+    private float mTexelSpacingMultiplier = 1f;
 
     public BasicBeautyFilter(float distanceNormalizationFactor) {
         super(BasicBeautifyShaders.VERTEX_SHADER, BasicBeautifyShaders.FRAGMENT_SHADER,
                 BasicBeautifyShaders.VERTEX_SHADER, BasicBeautifyShaders.FRAGMENT_SHADER);
-        this.distanceNormalizationFactor = distanceNormalizationFactor;
-        this.texelSpacingMultiplier = 4.0f;
+        this.mDistanceNormalizationFactor = distanceNormalizationFactor;
+        this.mTexelSpacingMultiplier = 4.0f;
     }
 
     @Override
@@ -31,7 +31,7 @@ public class BasicBeautyFilter extends GPUImageTwoPassTextureSamplingFilter {
         GPUImageFilter filter = mFilters.get(0);
         int distanceNormalizationFactor = GLES20.glGetUniformLocation(filter.getProgram(),
                 "distanceNormalizationFactor");
-        filter.setFloat(distanceNormalizationFactor, this.distanceNormalizationFactor);
+        filter.setFloat(distanceNormalizationFactor, this.mDistanceNormalizationFactor);
 
         int texelWidthOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(),
                 "texelWidthOffset");
@@ -44,7 +44,7 @@ public class BasicBeautyFilter extends GPUImageTwoPassTextureSamplingFilter {
         filter = mFilters.get(1);
         distanceNormalizationFactor = GLES20.glGetUniformLocation(filter.getProgram(),
                 "distanceNormalizationFactor");
-        filter.setFloat(distanceNormalizationFactor, this.distanceNormalizationFactor);
+        filter.setFloat(distanceNormalizationFactor, this.mDistanceNormalizationFactor);
 
         texelWidthOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(),
                 "texelWidthOffset");
@@ -62,18 +62,18 @@ public class BasicBeautyFilter extends GPUImageTwoPassTextureSamplingFilter {
     }
 
     public float getVerticalTexelOffsetRatio() {
-        return texelSpacingMultiplier;
+        return mTexelSpacingMultiplier;
     }
 
     public float getHorizontalTexelOffsetRatio() {
-        return texelSpacingMultiplier;
+        return mTexelSpacingMultiplier;
     }
 
     /**
      * A normalization factor for the distance between central color and sample color.
      */
     public void setDistanceNormalizationFactor(float distanceNormalizationFactor) {
-        this.distanceNormalizationFactor = distanceNormalizationFactor;
+        this.mDistanceNormalizationFactor = distanceNormalizationFactor;
         runOnDraw(new Runnable() {
             @Override
             public void run() {
@@ -86,7 +86,7 @@ public class BasicBeautyFilter extends GPUImageTwoPassTextureSamplingFilter {
      * A scaling for the size of the applied blur, default of 4.0
      */
     public void setTexelSpacingMultiplier(float texelSpacingMultiplier) {
-        this.texelSpacingMultiplier = texelSpacingMultiplier;
+        this.mTexelSpacingMultiplier = texelSpacingMultiplier;
         runOnDraw(new Runnable() {
             @Override
             public void run() {

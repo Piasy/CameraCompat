@@ -1,6 +1,6 @@
 # Change log
 
-+ v1.2.4
++ v1.2.5
   - try better when decode qr code from image file
 + v1.2.3
   - generate qr code into file
