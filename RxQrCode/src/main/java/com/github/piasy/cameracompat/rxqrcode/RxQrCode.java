@@ -36,9 +36,11 @@ import android.support.v4.app.FragmentManager;
 import com.github.piasy.cameracompat.CameraCompat;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
+import com.google.zxing.ChecksumException;
+import com.google.zxing.DecodeHintType;
 import com.google.zxing.EncodeHintType;
+import com.google.zxing.FormatException;
 import com.google.zxing.LuminanceSource;
-import com.google.zxing.MultiFormatReader;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.NotFoundException;
 import com.google.zxing.PlanarYUVLuminanceSource;
@@ -47,10 +49,12 @@ import com.google.zxing.Result;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import rx.Emitter;
 import rx.Observable;
 import rx.schedulers.Schedulers;
@@ -62,6 +66,10 @@ import rx.schedulers.Schedulers;
 public final class RxQrCode {
     private static final int QR_CODE_LENGTH = 200;
     private static final int QR_CODE_IN_SAMPLE_LENGTH = 512;
+    private static final int MAX_RETRY_TIMES = 4;
+
+    private static final Map<DecodeHintType, ?> TRY_HARDER = Collections
+            .singletonMap(DecodeHintType.TRY_HARDER, true);
 
     private RxQrCode() {
         // no instance
@@ -78,8 +86,46 @@ public final class RxQrCode {
     }
 
     public static Observable<Result> scanFromPicture(String path) {
-        return create(path)
-                .flatMap(source -> resolve(source, true));
+        return Observable.fromCallable(() -> {
+            final BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, options);
+
+            options.inSampleSize = calculateInSampleSize(options, QR_CODE_IN_SAMPLE_LENGTH,
+                    QR_CODE_IN_SAMPLE_LENGTH);
+
+            options.inJustDecodeBounds = false;
+            int[] pixels = new int[options.outWidth * options.outHeight
+                                   / options.inSampleSize
+                                   / options.inSampleSize];
+
+            QRCodeReader reader = new QRCodeReader();
+            int retryTimes = 0;
+            Result result = null;
+            while (result == null && retryTimes < MAX_RETRY_TIMES) {
+                Bitmap picture = BitmapFactory.decodeFile(path, options);
+                int width = picture.getWidth();
+                int height = picture.getHeight();
+                picture.getPixels(pixels, 0, width, 0, 0, width, height);
+                picture.recycle();
+                LuminanceSource source = new RGBLuminanceSource(width, height, pixels);
+                BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
+                try {
+                    result = reader.decode(bitmap, TRY_HARDER);
+                } catch (NotFoundException | ChecksumException | FormatException ignored) {
+                    retryTimes++;
+                    options.inSampleSize *= 2;
+                }
+            }
+            reader.reset();
+
+            return result;
+        }).flatMap(result -> {
+            if (result == null) {
+                return Observable.error(NotFoundException.getNotFoundInstance());
+            }
+            return Observable.just(result);
+        });
     }
 
     /**
@@ -155,26 +201,6 @@ public final class RxQrCode {
         }, Emitter.BackpressureMode.BUFFER);
     }
 
-    private static Observable<LuminanceSource> create(String path) {
-        return Observable.fromCallable(() -> {
-            final BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(path, options);
-
-            options.inSampleSize = calculateInSampleSize(options, QR_CODE_IN_SAMPLE_LENGTH,
-                    QR_CODE_IN_SAMPLE_LENGTH);
-
-            options.inJustDecodeBounds = false;
-            Bitmap bitmap = BitmapFactory.decodeFile(path, options);
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            int[] pixels = new int[width * height];
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-            bitmap.recycle();
-            return new RGBLuminanceSource(width, height, pixels);
-        });
-    }
-
     private static Observable<ImageFrame> create(@Nullable Bundle savedInstanceState,
             FragmentManager fragmentManager, @IdRes final int container,
             CameraCompat.ErrorHandler handler) {
@@ -204,10 +230,10 @@ public final class RxQrCode {
 
     private static Observable<Result> resolve(LuminanceSource source, boolean failWhenNotFound) {
         BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
-        MultiFormatReader reader = new MultiFormatReader();
+        QRCodeReader reader = new QRCodeReader();
         try {
-            return Observable.just(reader.decodeWithState(bitmap));
-        } catch (NotFoundException e) {
+            return Observable.just(reader.decode(bitmap, TRY_HARDER));
+        } catch (NotFoundException | ChecksumException | FormatException e) {
             if (failWhenNotFound) {
                 return Observable.error(e);
             }
