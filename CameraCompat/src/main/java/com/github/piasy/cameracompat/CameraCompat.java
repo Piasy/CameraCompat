@@ -89,8 +89,7 @@ public final class CameraCompat {
             mProfiler = null;
         }
         if (builder.mProcessors.isEmpty()) {
-            mProcessorChain = new DirectChain(mIsFrontCamera, mVideoCaptureCallback, mPreviewWidth,
-                    mPreviewHeight);
+            mProcessorChain = new DirectChain(mIsFrontCamera, mVideoCaptureCallback);
         } else {
             mProcessorChain = new GPUImageChain(builder.mProcessors, mIsBeautifyOn,
                     mIsFrontCamera, mVideoCaptureCallback, mProfiler);
@@ -245,11 +244,18 @@ public final class CameraCompat {
             mProcessors = new ArrayList<>();
         }
 
+        /**
+         * @param previewWidth sensor width, e.g. 640*480, width is 640, no matter what orientation
+         */
         public Builder previewWidth(int previewWidth) {
             mPreviewWidth = previewWidth;
             return this;
         }
 
+        /**
+         * @param previewHeight sensor width, e.g. 640*480, height is 480, no matter what
+         * orientation
+         */
         public Builder previewHeight(int previewHeight) {
             mPreviewHeight = previewHeight;
             return this;

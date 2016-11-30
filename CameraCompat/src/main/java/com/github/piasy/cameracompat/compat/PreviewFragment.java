@@ -24,6 +24,7 @@
 
 package com.github.piasy.cameracompat.compat;
 
+import android.Manifest;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -41,6 +42,8 @@ import com.github.piasy.cameracompat.processor.GPUImageChain;
 import com.github.piasy.cameracompat.processor.ProcessorChain;
 import com.github.piasy.safelyandroid.misc.CheckUtil;
 import com.hannesdorfmann.fragmentargs.annotation.Arg;
+import com.tbruyelle.rxpermissions2.RxPermissions;
+import io.reactivex.disposables.Disposable;
 import javax.annotation.concurrent.GuardedBy;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -72,6 +75,7 @@ abstract class PreviewFragment extends Fragment {
     private CameraHelper mCameraHelper;
     @GuardedBy("this")
     private EventBus mEventBus;
+    private Disposable mPermissionRequest;
 
     public PreviewFragment() {
         // Required empty public constructor
@@ -124,9 +128,16 @@ abstract class PreviewFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
-        if (CheckUtil.nonNull(mCameraHelper)) {
-            mCameraHelper.startPreview();
-        }
+        disposePermissionRequest();
+        mPermissionRequest = RxPermissions.getInstance(getContext())
+                .request(Manifest.permission.CAMERA)
+                .subscribe(grant -> {
+                    if (grant && CheckUtil.nonNull(mCameraHelper)) {
+                        mCameraHelper.startPreview();
+                    } else {
+                        CameraCompat.onError(CameraCompat.ERR_PERMISSION);
+                    }
+                }, throwable -> CameraCompat.onError(CameraCompat.ERR_PERMISSION));
     }
 
     @Override
@@ -143,6 +154,7 @@ abstract class PreviewFragment extends Fragment {
         super.onDestroyView();
         mEventBus.unregister(this);
         mProcessorChain.tearDown();
+        disposePermissionRequest();
     }
 
     @Override
@@ -152,6 +164,13 @@ abstract class PreviewFragment extends Fragment {
         synchronized (this) {
             mProcessorChain = null;
             mEventBus = null;
+        }
+    }
+
+    private void disposePermissionRequest() {
+        if (mPermissionRequest != null && !mPermissionRequest.isDisposed()) {
+            mPermissionRequest.dispose();
+            mPermissionRequest = null;
         }
     }
 

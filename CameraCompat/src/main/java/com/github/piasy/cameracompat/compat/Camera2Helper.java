@@ -26,6 +26,7 @@ package com.github.piasy.cameracompat.compat;
 
 import android.annotation.TargetApi;
 import android.graphics.ImageFormat;
+import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -42,6 +43,8 @@ import android.util.Size;
 import android.view.Surface;
 import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.compat.events.CameraAccessError;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
@@ -108,12 +111,13 @@ class Camera2Helper extends CameraHelper {
             mBackgroundThread = new HandlerThread("PreviewFragmentV21Thread");
             mBackgroundThread.start();
             mCamera2Handler = new Handler(mBackgroundThread.getLooper());
-            Size size = findOptSize(getCurrentCameraId());
+            PreviewSize size = findOptSize(mPreviewWidth, mPreviewHeight);
             mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(),
                     ImageFormat.YUV_420_888, 2);
             mImageReader.setOnImageAvailableListener(mPreviewCallback, mCamera2Handler);
             mCameraManager.openCamera(getCurrentCameraId(), mCameraCallback, mCamera2Handler);
-        } catch (SecurityException | CameraAccessException | IllegalStateException e) {
+        } catch (SecurityException | CameraAccessException | IllegalStateException |
+                CameraAccessError e) {
             CameraCompat.onError(CameraCompat.ERR_PERMISSION);
             return false;
         } catch (RuntimeException e) {
@@ -189,6 +193,30 @@ class Camera2Helper extends CameraHelper {
         }
     }
 
+    @Override
+    protected List<PreviewSize> getSupportedSize() {
+        try {
+            CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(
+                    getCurrentCameraId());
+            StreamConfigurationMap map =
+                    characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            if (map == null) {
+                return Collections.singletonList(new PreviewSize(mPreviewWidth, mPreviewHeight));
+            }
+            Size[] supportedSize = map.getOutputSizes(SurfaceTexture.class);
+            if (supportedSize == null || supportedSize.length == 0) {
+                return Collections.singletonList(new PreviewSize(mPreviewWidth, mPreviewHeight));
+            }
+            List<PreviewSize> results = new ArrayList<>();
+            for (Size size : supportedSize) {
+                results.add(new PreviewSize(size.getWidth(), size.getHeight()));
+            }
+            return results;
+        } catch (CameraAccessException e) {
+            throw new CameraAccessError();
+        }
+    }
+
     private void operateFlash(boolean isOpen) throws CameraAccessException, SecurityException {
         CameraCharacteristics characteristics =
                 mCameraManager.getCameraCharacteristics(mBackCameraId);
@@ -215,17 +243,6 @@ class Camera2Helper extends CameraHelper {
                 }
             }
         }
-    }
-
-    private Size findOptSize(String cameraId) throws CameraAccessException {
-        CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(cameraId);
-        StreamConfigurationMap map =
-                characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        if (map == null) {
-            return new Size(mPreviewWidth, mPreviewHeight);
-        }
-        // TODO: 5/30/16 adjust size
-        return new Size(mPreviewWidth, mPreviewHeight);
     }
 
     private String getCurrentCameraId() throws IllegalStateException {

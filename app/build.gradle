@@ -8,12 +8,12 @@ android {
     buildToolsVersion rootProject.ext.androidBuildToolsVersion
 
     defaultConfig {
-        applicationId "com.github.piasy.cameracompat"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.releaseVersionCode
         versionName rootProject.ext.releaseVersionName
 
+        applicationId "com.github.piasy.cameracompat.example"
         ndk {
             abiFilter "armeabi"
         }
@@ -43,7 +43,6 @@ dependencies {
 
     compile project(':CameraCompat')
     compile project(':BasicBeautifyProcessor')
-    compile project(':RxQrCode')
 
     compile("io.reactivex:rxandroid:$rootProject.ext.rxAndroidVersion") {
         exclude module: 'rxjava'

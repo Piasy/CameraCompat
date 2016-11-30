@@ -24,7 +24,6 @@
 
 package com.github.piasy.cameracompat.example;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import butterknife.ButterKnife;
@@ -46,10 +45,5 @@ public class MainActivity extends AppCompatActivity {
     @OnClick(R2.id.mBtnBeautifyPublish)
     public void beautifyPublish() {
         startActivity(PublishActivityAutoBundle.createIntentBuilder(true).build(this));
-    }
-
-    @OnClick(R2.id.mBtnQrScan)
-    public void qrScan() {
-        startActivity(new Intent(this, QrScanActivity.class));
     }
 }

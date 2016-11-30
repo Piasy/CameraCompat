@@ -97,7 +97,6 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
     @OnClick(R2.id.mBtnSwitchMirror)
     public void switchMirror() {
         mCameraCompat.switchMirror();
-        Toast.makeText(this, "switchMirror", Toast.LENGTH_SHORT).show();
     }
 
     @OnClick(R2.id.mBtnSwitchVisibility)
@@ -146,13 +145,22 @@ public class PublishActivity extends AppCompatActivity implements CameraCompat.V
 
     private void start() {
         CameraCompat.Builder builder = new CameraCompat.Builder(this, this)
-                .beautifyOn(false)
-                .frontCamera(false);
+                .beautifyOn(false)      // default beautify option
+                .flashOpen(false)       // default flash option
+                .previewWidth(639)      // preview width
+                .previewHeight(479)     // preview height
+                .enableMirror(false)    // default mirror option
+                .frontCamera(false);    // default camera option
         if (mBeautifyCapable) {
+            // add beautify processor, sorry that BasicBeautifyProcessor doesn't work now,
+            // but in our production app, our real beautify processor works well,
+            // I'm not an expert about open-gl, pr is welcome!
             builder.addProcessor(new BasicBeautifyProcessor());
         }
         mCameraCompat = builder.build();
-        mCameraCompat.startPreview(null, getSupportFragmentManager(), R.id.mPreviewContainer);
+        mCameraCompat.startPreview(null,
+                getSupportFragmentManager(),
+                R.id.mPreviewContainer);    // add this ViewGroup in your layout
     }
 
     @WorkerThread

@@ -22,25 +22,26 @@
  * SOFTWARE.
  */
 
-package com.github.piasy.cameracompat.example;
+package com.github.piasy.cameracompat.compat;
 
-import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
-import com.github.piasy.cameracompat.CameraCompat;
+/**
+ * Created by Piasy{github.com/Piasy} on 30/11/2016.
+ */
 
-public class QrScanActivity extends AppCompatActivity {
+public class PreviewSize {
+    private final int mWidth;
+    private final int mHeight;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getSupportFragmentManager().beginTransaction()
-                .add(android.R.id.content, new QrScanFragment())
-                .commit();
+    public PreviewSize(int width, int height) {
+        mWidth = width;
+        mHeight = height;
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        CameraCompat.reset();
+    public int getWidth() {
+        return mWidth;
+    }
+
+    public int getHeight() {
+        return mHeight;
     }
 }

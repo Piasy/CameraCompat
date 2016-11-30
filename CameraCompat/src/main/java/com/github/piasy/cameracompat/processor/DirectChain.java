@@ -44,8 +44,6 @@ import jp.co.cyberagent.android.gpuimage.Rotation;
 
 public class DirectChain implements ProcessorChain, TextureView.SurfaceTextureListener {
     private final CameraCompat.VideoCaptureCallback mVideoCaptureCallback;
-    private final int mDesiredWidth;
-    private final int mDesiredHeight;
 
     private TextureView mTextureView;
     private volatile SurfaceInitCallback mPendingNotify = null;
@@ -54,9 +52,8 @@ public class DirectChain implements ProcessorChain, TextureView.SurfaceTextureLi
 
     private int mOutputWidth;
     private int mOutputHeight;
-    private int mVideoWidth;
-    private int mVideoHeight;
-    private volatile boolean mVideoSizeChangeNotified;
+    private volatile int mVideoWidth;
+    private volatile int mVideoHeight;
 
     private volatile boolean mIsFrontCamera;
     private volatile boolean mEnableMirror;
@@ -64,14 +61,9 @@ public class DirectChain implements ProcessorChain, TextureView.SurfaceTextureLi
     private ByteBuffer mGLYuvBuffer;
 
     public DirectChain(boolean defaultFrontCamera,
-            CameraCompat.VideoCaptureCallback videoCaptureCallback, int desiredWidth,
-            int desiredHeight) {
+            CameraCompat.VideoCaptureCallback videoCaptureCallback) {
         mVideoCaptureCallback = videoCaptureCallback;
         mIsFrontCamera = defaultFrontCamera;
-        mDesiredWidth = desiredWidth;
-        mDesiredHeight = desiredHeight;
-        mVideoWidth = mDesiredWidth;
-        mVideoHeight = mDesiredHeight;
     }
 
     @Override
@@ -143,19 +135,24 @@ public class DirectChain implements ProcessorChain, TextureView.SurfaceTextureLi
         postProcessedTask.run();
     }
 
+    /**
+     * direct chain won't change frame size, so the size is ignored, but actually they are equal.
+     */
     private void notifyVideoSizeChanged(int width, int height) {
-        if (mVideoSizeChangeNotified) {
+        if (mVideoWidth != 0) {
             return;
         }
-        mVideoSizeChangeNotified = true;
+        mVideoWidth = width;
+        mVideoHeight = height;
         if (mGLYuvBuffer == null) {
             mGLYuvBuffer = ByteBuffer.allocateDirect(mVideoWidth * mVideoHeight * 3 / 2);
         }
         mVideoCaptureCallback.onVideoSizeChanged(mVideoWidth, mVideoHeight);
+        mTextureView.post(this::adjustImageScaling);
     }
 
     private void adjustImageScaling() {
-        if (mRotation == null) {
+        if (mRotation == null || mVideoWidth == 0 || mVideoHeight == 0) {
             return;
         }
         float videoWidth = mVideoWidth;

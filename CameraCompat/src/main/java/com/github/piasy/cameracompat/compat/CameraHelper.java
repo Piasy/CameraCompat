@@ -27,6 +27,9 @@ package com.github.piasy.cameracompat.compat;
 import android.view.Surface;
 import com.github.piasy.cameracompat.CameraCompat;
 import com.github.piasy.cameracompat.compat.events.CameraAccessError;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
 /**
@@ -36,8 +39,9 @@ import jp.co.cyberagent.android.gpuimage.Rotation;
 abstract class CameraHelper {
     protected final int mPreviewWidth;
     protected final int mPreviewHeight;
+    protected boolean mIsFront;
+
     private final int mActivityRotation;
-    boolean mIsFront;
     private boolean mFlashLightOn;
 
     CameraHelper(int previewWidth, int previewHeight, int activityRotation, boolean isFront) {
@@ -119,6 +123,31 @@ abstract class CameraHelper {
         return true;
     }
 
+    protected PreviewSize findOptSize(int desiredWidth, int desiredHeight) {
+        List<PreviewSize> supportedSize = getSupportedSize();
+        List<PreviewSize> qualifiedSize = new ArrayList<>();
+        for (int i = 0, size = supportedSize.size(); i < size; i++) {
+            PreviewSize option = supportedSize.get(i);
+            if (desiredWidth > desiredHeight) {
+                if (option.getWidth() >= desiredWidth && option.getHeight() >= desiredHeight) {
+                    qualifiedSize.add(option);
+                }
+            } else {
+                if (option.getWidth() >= desiredHeight && option.getHeight() >= desiredWidth) {
+                    qualifiedSize.add(option);
+                }
+            }
+        }
+        if (qualifiedSize.size() > 0) {
+            return Collections.min(qualifiedSize, (lhs, rhs) -> {
+                int delta = lhs.getWidth() * lhs.getHeight() - rhs.getWidth() * rhs.getHeight();
+                return Integer.signum(delta);
+            });
+        } else {
+            return new PreviewSize(desiredWidth, desiredHeight);
+        }
+    }
+
     protected abstract boolean startPreview();
 
     protected abstract boolean stopPreview();
@@ -130,4 +159,6 @@ abstract class CameraHelper {
     protected abstract void doOpenFlash() throws RuntimeException;
 
     protected abstract void doCloseFlash() throws RuntimeException;
+
+    protected abstract List<PreviewSize> getSupportedSize() throws RuntimeException;
 }

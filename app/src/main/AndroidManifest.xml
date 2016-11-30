@@ -25,11 +25,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="com.github.piasy.cameracompat.example">
 
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-
     <application
             android:name=".DemoApplication"
             android:allowBackup="true"
@@ -45,7 +40,6 @@
             </intent-filter>
         </activity>
         <activity android:name=".PublishActivity"/>
-        <activity android:name=".QrScanActivity"/>
     </application>
 
 </manifest>

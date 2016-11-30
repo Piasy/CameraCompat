@@ -28,6 +28,8 @@ import android.annotation.TargetApi;
 import android.hardware.Camera;
 import android.os.Build;
 import com.github.piasy.cameracompat.CameraCompat;
+import java.util.ArrayList;
+import java.util.List;
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
@@ -49,13 +51,12 @@ class Camera1Helper extends CameraHelper {
         try {
             mCamera = openCamera();
             Camera.Parameters parameters = mCamera.getParameters();
-            // TODO adjust by getting supportedPreviewSizes and then choosing
-            // the best one for screen size (best fill screen)
             if (parameters.getSupportedFocusModes()
                     .contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
                 parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
             }
-            parameters.setPreviewSize(mPreviewWidth, mPreviewHeight);
+            PreviewSize previewSize = findOptSize(mPreviewWidth, mPreviewHeight);
+            parameters.setPreviewSize(previewSize.getWidth(), previewSize.getHeight());
             mCamera.setParameters(parameters);
             mCamera.setPreviewCallback(mPreviewCallback);
             Rotation rotation = getRotation();
@@ -107,6 +108,17 @@ class Camera1Helper extends CameraHelper {
         Camera.Parameters parameters = mCamera.getParameters();
         parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
         mCamera.setParameters(parameters);
+    }
+
+    @Override
+    protected List<PreviewSize> getSupportedSize() throws RuntimeException {
+        List<Camera.Size> supportedSize = mCamera.getParameters().getSupportedPreviewSizes();
+        List<PreviewSize> results = new ArrayList<>();
+        for (int i = 0, size = supportedSize.size(); i < size; i++) {
+            Camera.Size option = supportedSize.get(i);
+            results.add(new PreviewSize(option.width, option.height));
+        }
+        return results;
     }
 
     private Camera openCamera() {

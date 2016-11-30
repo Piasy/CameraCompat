@@ -1,5 +1,8 @@
 # Change log
 
++ v1.3.0
+  - move out RxQrCode, handle runtime permission
+  - findOptSize
 + v1.2.5
   - try better when decode qr code from image file
 + v1.2.3
